@@ -277,7 +277,9 @@ jobs:
             web/public/data/sessions/index.json
 
   publish:
-    if: ${{ inputs.publish_pr }}
+    if: >-
+      ${{ always() && inputs.publish_pr && needs.finalize.result == 'success' &&
+      (inputs.resume_run_id != '' || needs.prepare.result == 'success') }}
     needs: [prepare, finalize]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
