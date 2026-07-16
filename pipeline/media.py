@@ -44,13 +44,19 @@ class AudioArtifact:
 class YtDlpStrategy:
     name: str
     extractor_args: str | None = None
+    extra_args: tuple[str, ...] = ()
 
 
-# The default client is preferred. android_vr is the documented credential-free
-# fallback that currently requires neither account cookies nor a YouTube PO token.
+# Prefer clients that need no attestation. The final mweb strategy uses the
+# credential-free local PO-token provider started by the hosted workflow.
 YT_DLP_STRATEGIES = (
     YtDlpStrategy("default"),
     YtDlpStrategy("android_vr", "youtube:player_client=android_vr"),
+    YtDlpStrategy(
+        "mweb_pot",
+        "youtube:player_client=mweb",
+        ("--js-runtimes", "node"),
+    ),
 )
 
 
@@ -224,6 +230,7 @@ class YtDlpMediaSource:
                 command = list(command_base)
                 if strategy.extractor_args:
                     command.extend(["--extractor-args", strategy.extractor_args])
+                command.extend(strategy.extra_args)
                 command.append(f"https://www.youtube.com/watch?v={self.video_id}")
                 completed = subprocess.run(
                     command, capture_output=True, text=True, timeout=7200

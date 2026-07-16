@@ -29,6 +29,7 @@ env:
   WHISPER_CPP_COMMIT: 23ee03506a91ac3d3f0071b40e66a430eebdfa1d
   WHISPER_CPP_VERSION: v1.8.6
   WHISPER_MODEL_SHA256: 60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe
+  YOUTUBE_POT_PROVIDER_IMAGE: brainicism/bgutil-ytdlp-pot-provider@sha256:1aaa43a0ca72dfca6a6d2129a0fb4a23465c25adb1b043f8aff829a20825646b
 
 jobs:
   prepare:
@@ -47,6 +48,9 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pipeline/requirements.txt
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
       - name: Install media runtime
         run: sudo apt-get update && sudo apt-get install --yes ffmpeg
       - run: python -m pip install -r pipeline/requirements.txt
@@ -62,12 +66,26 @@ jobs:
           python pipeline/automation.py prepare \
             --session-date "${{ inputs.session_date }}" \
             --github-output "$GITHUB_OUTPUT" $offline
+      - name: Start credential-free YouTube attestation
+        shell: bash
+        run: |
+          docker run --detach --rm --name youtube-pot-provider \
+            --publish 127.0.0.1:4416:4416 "$YOUTUBE_POT_PROVIDER_IMAGE"
+          for _ in {1..20}; do
+            if curl --silent --output /dev/null http://127.0.0.1:4416/; then exit 0; fi
+            sleep 1
+          done
+          docker logs youtube-pot-provider
+          exit 1
       - name: Acquire temporary official-session audio
         run: >-
           python pipeline/media.py acquire
           --video-id "${{ steps.prepare.outputs.video_id }}"
           --output-dir .cache/media
           --status-file .cache/media/status.json
+      - name: Stop YouTube attestation
+        if: ${{ always() }}
+        run: docker stop youtube-pot-provider || true
       - uses: actions/cache@v4
         id: whisper-runtime
         with:

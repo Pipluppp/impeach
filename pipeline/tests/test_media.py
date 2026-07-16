@@ -22,9 +22,12 @@ def test_youtube_strategies_keep_credential_free_fallback_order() -> None:
     assert [strategy.name for strategy in YT_DLP_STRATEGIES] == [
         "default",
         "android_vr",
+        "mweb_pot",
     ]
     assert YT_DLP_STRATEGIES[0].extractor_args is None
     assert YT_DLP_STRATEGIES[1].extractor_args == "youtube:player_client=android_vr"
+    assert YT_DLP_STRATEGIES[2].extractor_args == "youtube:player_client=mweb"
+    assert YT_DLP_STRATEGIES[2].extra_args == ("--js-runtimes", "node")
 
 
 def test_youtube_acquisition_retries_with_android_vr(
