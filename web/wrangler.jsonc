@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "senate-synchronized-journal",
+  "name": "impeach",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-07-16",
   "assets": {
@@ -12,6 +12,6 @@
   "observability": {"enabled": true},
   "env": {
     "preview": {"name": "senate-synchronized-journal-preview"},
-    "production": {"name": "senate-synchronized-journal"}
+    "production": {"name": "impeach"}
   }
 }
