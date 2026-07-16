@@ -2,7 +2,8 @@ name: Check official session feeds
 
 on:
   schedule:
-    - cron: "17 1,9 * * *"
+    # 09:17 Asia/Manila (GitHub schedules are UTC).
+    - cron: "17 1 * * *"
   workflow_dispatch:
 
 permissions:

@@ -1,6 +1,11 @@
 name: Deploy static reader
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "data/**"
+      - "web/**"
   workflow_dispatch:
     inputs:
       target:
@@ -13,14 +18,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ inputs.target }}
+  group: deploy-${{ github.event_name == 'push' && 'production' || inputs.target }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ inputs.target }}
+    environment: ${{ github.event_name == 'push' && 'production' || inputs.target }}
+    env:
+      DEPLOY_TARGET: ${{ github.event_name == 'push' && 'production' || inputs.target }}
     defaults:
       run:
         working-directory: web
@@ -34,7 +41,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - name: Deploy selected static-assets environment
-        run: npx wrangler deploy --env "${{ inputs.target }}"
+        run: npx wrangler deploy --env "$DEPLOY_TARGET"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
