@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      resume_run_id:
+        description: Reuse prepared and ASR artifacts from an earlier run
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -33,6 +38,7 @@ env:
 
 jobs:
   prepare:
+    if: ${{ inputs.resume_run_id == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     outputs:
@@ -156,6 +162,7 @@ jobs:
           path: .cache/media/${{ steps.prepare.outputs.video_id }}-full.m4a
 
   transcribe:
+    if: ${{ inputs.resume_run_id == '' }}
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 355
@@ -209,8 +216,14 @@ jobs:
 
   finalize:
     needs: [prepare, transcribe]
+    if: >-
+      ${{ always() && (inputs.resume_run_id != '' ||
+      (needs.prepare.result == 'success' && needs.transcribe.result == 'success')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -225,11 +238,15 @@ jobs:
         with:
           name: prepared-session
           path: .
+          run-id: ${{ inputs.resume_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:
           pattern: asr-chunk-*
           path: .work/asr
           merge-multiple: true
+          run-id: ${{ inputs.resume_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Merge absolute timestamps, align, and build public data
         shell: bash
         run: |
