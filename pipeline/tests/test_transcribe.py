@@ -102,6 +102,13 @@ def test_confirmed_one_word_silence_hallucination_is_dropped() -> None:
     assert dropped_seconds == 120
 
 
+def test_single_long_low_information_segment_triggers_retry() -> None:
+    hallucination = [Segment(0, 120, "you", "you")]
+    assert window_quality_findings(
+        hallucination, window_duration_seconds=120
+    ) == ["low_lexical_diversity"]
+
+
 def test_merge_is_monotonic_and_reassigns_ids() -> None:
     payloads = [
         {"segments": [{"id": "old", "start": 10.0, "end": 12.0, "text": "one"}]},

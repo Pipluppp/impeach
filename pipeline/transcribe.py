@@ -243,6 +243,11 @@ def window_quality_findings(
             and quality["lexical_unique_ratio"] <= 0.34
             and low_diversity_span
         )
+        or (
+            0 < lexical_count <= 2
+            and low_diversity_span
+            and all(len(segment.normalized_text.split()) <= 2 for segment in segments)
+        )
     ):
         findings.append("low_lexical_diversity")
     if (
