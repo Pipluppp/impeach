@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pipeline.automation import build_public_index, merge_chunks, pending_sessions
+from pipeline.automation import (
+    build_public_index,
+    merge_chunks,
+    pending_sessions,
+    processing_plan_outputs,
+)
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -71,6 +76,23 @@ def test_parallel_chunks_merge_into_full_session_payload(tmp_path: Path) -> None
     assert payload["segment_count"] == 2
     assert [item["id"] for item in payload["segments"]] == ["asr-000001", "asr-000002"]
     assert payload["runtime"]["whisper_cpp_versions"] == ["v1.8.6"]
+
+
+def test_prepared_plan_can_rehydrate_matrix_outputs(tmp_path: Path) -> None:
+    plan_path = tmp_path / "plan.json"
+    write_json(plan_path, {
+        "session_id": "session-1",
+        "video_id": "video-1",
+        "duration_seconds": 20,
+        "matrix": {"include": [{"number": "001"}, {"number": "002"}]},
+    })
+    assert processing_plan_outputs(plan_path) == {
+        "session_id": "session-1",
+        "video_id": "video-1",
+        "duration": 20,
+        "chunk_count": 2,
+        "matrix": {"include": [{"number": "001"}, {"number": "002"}]},
+    }
 
 
 def test_public_index_selects_latest_generated_session(tmp_path: Path) -> None:

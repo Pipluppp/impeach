@@ -13,8 +13,9 @@ from urllib.request import Request, urlopen
 
 SENATE_FEED_URL = "https://senate.gov.ph/hq/impeachment/published"
 SENATE_LISTING_URL = "https://senate.gov.ph/services/impeachment-documents"
-
-
+SENATE_HTTP_USER_AGENT = (
+    "SenatePublicDocumentsMonitor/1.0 (+https://github.com/Pipluppp/impeach)"
+)
 class OfficialSourceUnavailable(RuntimeError):
     """Neither official-source adapter returned a valid bounded response."""
 
@@ -27,8 +28,9 @@ def _http_reader(url: str, accept: str) -> bytes:
         url,
         headers={
             "Accept": accept,
+            "Accept-Language": "en-US,en;q=0.9",
             "Referer": SENATE_LISTING_URL,
-            "User-Agent": "senate-journal-reader/0.1 (+local civic-record prototype)",
+            "User-Agent": SENATE_HTTP_USER_AGENT,
         },
     )
     with urlopen(request, timeout=30) as response:

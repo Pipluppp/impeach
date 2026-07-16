@@ -221,6 +221,21 @@ def merge_chunks(root: Path, plan_path: Path, chunks_dir: Path) -> dict[str, Any
     return payload
 
 
+def processing_plan_outputs(plan_path: Path) -> dict[str, Any]:
+    plan = load_json(plan_path)
+    matrix = plan["matrix"]
+    include = matrix["include"]
+    if not include or any("number" not in item for item in include):
+        raise AutomationError("prepared processing plan has no valid ASR matrix")
+    return {
+        "matrix": matrix,
+        "session_id": plan["session_id"],
+        "video_id": plan["video_id"],
+        "duration": plan["duration_seconds"],
+        "chunk_count": len(include),
+    }
+
+
 def build_public_index(root: Path) -> dict[str, Any]:
     session_dir = root / "web" / "public" / "data" / "sessions"
     entries = []
@@ -315,6 +330,9 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--session-date", required=True)
     prepare.add_argument("--offline", action="store_true")
     prepare.add_argument("--github-output", type=Path)
+    outputs = subparsers.add_parser("plan-outputs")
+    outputs.add_argument("--plan", type=Path, required=True)
+    outputs.add_argument("--github-output", type=Path)
     merge = subparsers.add_parser("merge")
     merge.add_argument("--plan", type=Path, required=True)
     merge.add_argument("--chunks-dir", type=Path, required=True)
@@ -337,6 +355,9 @@ def main(argv: list[str] | None = None) -> int:
                 "video_id": payload["video_id"], "duration": payload["duration_seconds"],
                 "chunk_count": len(payload["matrix"]["include"]),
             })
+        elif args.command == "plan-outputs":
+            payload = processing_plan_outputs(args.plan)
+            _write_github_outputs(args.github_output, payload)
         elif args.command == "merge":
             payload = {"segments": merge_chunks(args.root, args.plan, args.chunks_dir)["segment_count"]}
         else:

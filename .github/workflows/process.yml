@@ -7,18 +7,23 @@ on:
         description: Official session date (YYYY-MM-DD)
         required: true
         type: string
-      reuse_preserved_source:
-        description: Reprocess a PDF already preserved in Git
-        required: true
-        default: false
-        type: boolean
       publish_pr:
         description: Publish generated records in a pull request
         required: true
         default: false
         type: boolean
+      validate_source_only:
+        description: Validate the preserved source handoff without media or ASR
+        required: true
+        default: false
+        type: boolean
       resume_run_id:
         description: Reuse prepared and ASR artifacts from an earlier run
+        required: false
+        default: ""
+        type: string
+      prepared_run_id:
+        description: Reuse prepared source and audio but rerun ASR
         required: false
         default: ""
         type: string
@@ -41,6 +46,9 @@ jobs:
     if: ${{ inputs.resume_run_id == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    permissions:
+      actions: read
+      contents: read
     outputs:
       matrix: ${{ steps.prepare.outputs.matrix }}
       session_id: ${{ steps.prepare.outputs.session_id }}
@@ -55,24 +63,36 @@ jobs:
           cache: pip
           cache-dependency-path: pipeline/requirements.txt
       - uses: actions/setup-node@v6
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         with:
           node-version: "24"
       - name: Install media runtime
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         run: sudo apt-get update && sudo apt-get install --yes ffmpeg
       - run: python -m pip install -r pipeline/requirements.txt
-      - name: Refresh official feeds
-        if: ${{ !inputs.reuse_preserved_source }}
-        run: python pipeline/discovery.py
-      - name: Preserve PDF, parse journal, and plan ASR
+      - name: Reuse prepared session
+        if: ${{ inputs.prepared_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: prepared-session
+          path: .
+          run-id: ${{ inputs.prepared_run_id }}
+          github-token: ${{ github.token }}
+      - name: Preserve PDF, parse journal, or rehydrate its ASR plan
         id: prepare
         shell: bash
         run: |
-          offline=""
-          if [[ "${{ inputs.reuse_preserved_source }}" == "true" ]]; then offline="--offline"; fi
+          if [[ -n "${{ inputs.prepared_run_id }}" ]]; then
+            python pipeline/automation.py plan-outputs \
+              --plan .work/automation/${{ inputs.session_date }}/plan.json \
+              --github-output "$GITHUB_OUTPUT"
+            exit 0
+          fi
           python pipeline/automation.py prepare \
             --session-date "${{ inputs.session_date }}" \
-            --github-output "$GITHUB_OUTPUT" $offline
+            --github-output "$GITHUB_OUTPUT" --offline
       - name: Start credential-free YouTube attestation
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         shell: bash
         run: |
           docker run --detach --rm --name youtube-pot-provider \
@@ -84,6 +104,7 @@ jobs:
           docker logs youtube-pot-provider
           exit 1
       - name: Materialize optional YouTube account cookies
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         shell: bash
         env:
           YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
@@ -94,6 +115,7 @@ jobs:
             > .cache/media-auth/youtube-cookies.txt
           chmod 600 .cache/media-auth/youtube-cookies.txt
       - name: Acquire temporary official-session audio
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         shell: bash
         run: |
           cookie_args=()
@@ -106,18 +128,19 @@ jobs:
             --status-file .cache/media/status.json \
             "${cookie_args[@]}"
       - name: Remove media credentials and stop attestation
-        if: ${{ always() }}
+        if: ${{ always() && inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         shell: bash
         run: |
           rm -f .cache/media-auth/youtube-cookies.txt
           docker stop youtube-pot-provider || true
       - uses: actions/cache@v4
         id: whisper-runtime
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         with:
           path: .cache/whisper-runtime
           key: whisper-cpp-linux-x64-${{ env.WHISPER_CPP_COMMIT }}
       - name: Build pinned whisper.cpp CPU runtime
-        if: steps.whisper-runtime.outputs.cache-hit != 'true'
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only && steps.whisper-runtime.outputs.cache-hit != 'true' }}
         shell: bash
         run: |
           git clone --filter=blob:none https://github.com/ggml-org/whisper.cpp .cache/whisper-source
@@ -129,11 +152,12 @@ jobs:
           cp .cache/whisper-source/build/bin/whisper-cli .cache/whisper-runtime/bin/
       - uses: actions/cache@v4
         id: whisper-model
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         with:
           path: .cache/models/ggml-base.bin
           key: whisper-model-base-${{ env.WHISPER_MODEL_SHA256 }}
       - name: Download and verify multilingual model
-        if: steps.whisper-model.outputs.cache-hit != 'true'
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only && steps.whisper-model.outputs.cache-hit != 'true' }}
         shell: bash
         run: |
           mkdir -p .cache/models
@@ -141,6 +165,7 @@ jobs:
             https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
           echo "$WHISPER_MODEL_SHA256  .cache/models/ggml-base.bin" | sha256sum --check
       - uses: actions/upload-artifact@v4
+        if: ${{ inputs.prepared_run_id == '' }}
         with:
           name: prepared-session
           retention-days: 1
@@ -154,6 +179,7 @@ jobs:
             data/sessions/${{ inputs.session_date }}/session.json
             .work/automation/${{ inputs.session_date }}/plan.json
       - uses: actions/upload-artifact@v4
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         with:
           name: temporary-session-audio
           retention-days: 1
@@ -162,10 +188,13 @@ jobs:
           path: .cache/media/${{ steps.prepare.outputs.video_id }}-full.m4a
 
   transcribe:
-    if: ${{ inputs.resume_run_id == '' }}
+    if: ${{ inputs.resume_run_id == '' && !inputs.validate_source_only }}
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 355
+    permissions:
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       max-parallel: 18
@@ -194,6 +223,8 @@ jobs:
         with:
           name: temporary-session-audio
           path: .cache/media
+          run-id: ${{ inputs.prepared_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Transcribe owned overlapping chunk
         run: >-
           python pipeline/transcribe.py whisper-cpp-chunk
@@ -218,7 +249,8 @@ jobs:
     needs: [prepare, transcribe]
     if: >-
       ${{ always() && (inputs.resume_run_id != '' ||
-      (needs.prepare.result == 'success' && needs.transcribe.result == 'success')) }}
+      (!inputs.validate_source_only && needs.prepare.result == 'success' &&
+      needs.transcribe.result == 'success')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -238,7 +270,7 @@ jobs:
         with:
           name: prepared-session
           path: .
-          run-id: ${{ inputs.resume_run_id || github.run_id }}
+          run-id: ${{ inputs.prepared_run_id || inputs.resume_run_id || github.run_id }}
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:

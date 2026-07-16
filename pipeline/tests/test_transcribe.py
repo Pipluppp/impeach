@@ -8,11 +8,16 @@ import pytest
 from pipeline.transcribe import (
     Segment,
     TranscriptionError,
+    drop_confirmed_low_information_repetition,
     merge_payloads,
     owned_segments,
     parse_whisper_cpp_json,
     parse_whisper_jsonl,
+    plan_windows,
     repair_ffmpeg_whisper_line,
+    transcript_quality,
+    validate_transcript_quality,
+    window_quality_findings,
     write_json_atomic,
 )
 
@@ -53,6 +58,66 @@ def test_chunk_overlap_has_single_owner_at_boundary() -> None:
     right = [Segment(98.5, 101.5, "left repeat", "left repeat"), Segment(102, 106, "right", "right")]
     assert [item.text for item in owned_segments(left, own_start=None, own_end=102.5)] == ["left"]
     assert [item.text for item in owned_segments(right, own_start=102.5, own_end=None)] == ["right"]
+
+
+def test_short_windows_reset_context_with_owned_overlap() -> None:
+    plans = plan_windows(100, 365, window_seconds=120, overlap_seconds=5)
+    assert [(item.core_start, item.core_end) for item in plans] == [
+        (100, 220), (220, 340), (340, 365)
+    ]
+    assert [(item.input_start, item.input_end) for item in plans] == [
+        (100, 225), (215, 345), (335, 365)
+    ]
+
+
+def test_quality_gate_rejects_long_lexical_repetition() -> None:
+    repeated = [
+        Segment(index * 2, index * 2 + 2, "I do not have a question", "i do not have a question")
+        for index in range(30)
+    ]
+    quality = transcript_quality(repeated)
+    assert quality["max_repeated_phrase_seconds"] == 60
+    assert "repeated_phrase_loop" in window_quality_findings(
+        repeated, window_duration_seconds=60
+    )
+    with pytest.raises(TranscriptionError, match="quality gate"):
+        validate_transcript_quality(repeated)
+
+
+def test_non_speech_window_retries_but_does_not_invent_lexical_failure() -> None:
+    blank = [Segment(0, 60, "[BLANK_AUDIO]", "blank_audio")]
+    assert window_quality_findings(blank, window_duration_seconds=60) == [
+        "non_speech_dominated"
+    ]
+    assert validate_transcript_quality(blank)["max_repeated_phrase_seconds"] == 0
+
+
+def test_confirmed_one_word_silence_hallucination_is_dropped() -> None:
+    hallucination = [Segment(index * 30, index * 30 + 30, "you", "you") for index in range(4)]
+    assert "low_lexical_diversity" in window_quality_findings(
+        hallucination, window_duration_seconds=120
+    )
+    filtered, dropped_seconds = drop_confirmed_low_information_repetition(hallucination)
+    assert filtered == []
+    assert dropped_seconds == 120
+
+
+def test_sparse_one_word_hallucination_uses_wall_clock_span() -> None:
+    hallucination = [
+        Segment(start, start + 2, "you", "you") for start in (30, 60, 90)
+    ]
+    quality = transcript_quality(hallucination)
+    assert quality["max_repeated_phrase_seconds"] == 62
+    assert window_quality_findings(
+        hallucination, window_duration_seconds=120
+    ) == ["repeated_phrase_loop"]
+
+
+def test_single_long_low_information_segment_triggers_retry() -> None:
+    hallucination = [Segment(0, 120, "you", "you")]
+    assert window_quality_findings(
+        hallucination, window_duration_seconds=120
+    ) == ["low_lexical_diversity"]
 
 
 def test_merge_is_monotonic_and_reassigns_ids() -> None:
