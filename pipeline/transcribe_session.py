@@ -10,13 +10,22 @@ from typing import Any
 
 try:
     from pipeline.transcribe import (
+        Segment,
         TranscriptionError,
         merge_payloads,
         run_chunk,
+        validate_transcript_quality,
         write_json_atomic,
     )
 except ModuleNotFoundError:  # Direct script execution.
-    from transcribe import TranscriptionError, merge_payloads, run_chunk, write_json_atomic
+    from transcribe import (
+        Segment,
+        TranscriptionError,
+        merge_payloads,
+        run_chunk,
+        validate_transcript_quality,
+        write_json_atomic,
+    )
 
 
 @dataclass(frozen=True)
@@ -69,6 +78,15 @@ def merge_session_chunks(
         raise TranscriptionError("merged transcript falls outside the session time domain")
     if segments[-1]["end"] > input_origin + duration + 30:
         raise TranscriptionError("merged transcript extends beyond the allowed audio tail")
+    quality = validate_transcript_quality([
+        Segment(
+            start=float(item["start"]),
+            end=float(item["end"]),
+            text=str(item["text"]),
+            normalized_text=str(item["normalized_text"]),
+        )
+        for item in segments
+    ])
     first_configuration = chunk_payloads[0]["configuration"]
     return {
         "schema_version": 1,
@@ -87,6 +105,10 @@ def merge_session_chunks(
             "chunk_duration_seconds": chunk_duration,
             "overlap_seconds": overlap,
             "input_sha256": first_configuration["input_sha256"],
+            "window_seconds": first_configuration.get("window_seconds"),
+            "window_overlap_seconds": first_configuration.get("window_overlap_seconds"),
+            "fallback_window_seconds": first_configuration.get("fallback_window_seconds"),
+            "max_context_tokens": first_configuration.get("max_context_tokens"),
         },
         "runtime": {
             "chunk_count": len(plans),
@@ -117,6 +139,19 @@ def merge_session_chunks(
                 for index, item in enumerate(chunk_payloads, 1)
                 if item["runtime"].get("recovered_existing_raw")
             ],
+            "quality": {
+                **quality,
+                "strategy": first_configuration.get("window_seconds")
+                and "reset_context_windowed_with_fallback" or "legacy",
+                "primary_window_count": sum(
+                    item["runtime"].get("quality", {}).get("primary_window_count", 0)
+                    for item in chunk_payloads
+                ),
+                "retried_window_count": sum(
+                    item["runtime"].get("quality", {}).get("retried_window_count", 0)
+                    for item in chunk_payloads
+                ),
+            },
         },
         "segment_count": len(segments),
         "segments": segments,

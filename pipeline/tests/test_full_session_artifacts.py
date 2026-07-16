@@ -30,6 +30,10 @@ def test_full_transcript_is_compact_monotonic_and_boundary_owned() -> None:
     assert len({segment["id"] for segment in segments}) == len(segments)
     assert transcript["runtime"]["chunk_count"] == 12
     assert isinstance(transcript["runtime"]["producer_json_repairs"], list)
+    if transcript["configuration"]["engine"] == "whisper.cpp":
+        quality = transcript["runtime"]["quality"]
+        assert quality["strategy"] == "reset_context_windowed_with_fallback"
+        assert quality["max_repeated_phrase_seconds"] < 45
 
 
 def test_final_alignment_is_honest_and_monotonic() -> None:

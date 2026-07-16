@@ -21,6 +21,18 @@ ROOT = Path(__file__).resolve().parents[1]
 ENGINE_NAME = "ffmpeg-whisper"
 ENGINE_VERSION = "0.1.0"
 WHISPER_CPP_ENGINE = "whisper.cpp"
+PRIMARY_WINDOW_SECONDS = 120.0
+PRIMARY_WINDOW_OVERLAP_SECONDS = 5.0
+FALLBACK_WINDOW_SECONDS = 30.0
+FALLBACK_WINDOW_OVERLAP_SECONDS = 2.0
+NON_SPEECH_MARKERS = {
+    "blank_audio",
+    "music",
+    "applause",
+    "audience applauding",
+    "speaking in foreign language",
+    "speaks in foreign language",
+}
 
 
 class TranscriptionError(RuntimeError):
@@ -33,6 +45,37 @@ class Segment:
     end: float
     text: str
     normalized_text: str
+
+
+@dataclass(frozen=True)
+class WindowPlan:
+    number: int
+    core_start: float
+    core_end: float
+    input_start: float
+    input_end: float
+
+
+def plan_windows(start: float, end: float, window_seconds: float, overlap_seconds: float) -> list[WindowPlan]:
+    if start < 0 or end <= start or window_seconds <= 0:
+        raise ValueError("invalid ASR window range")
+    if overlap_seconds < 0 or overlap_seconds >= window_seconds / 2:
+        raise ValueError("invalid ASR window overlap")
+    plans: list[WindowPlan] = []
+    core_start = start
+    number = 1
+    while core_start < end:
+        core_end = min(end, core_start + window_seconds)
+        plans.append(WindowPlan(
+            number=number,
+            core_start=core_start,
+            core_end=core_end,
+            input_start=max(start, core_start - overlap_seconds),
+            input_end=min(end, core_end + overlap_seconds),
+        ))
+        core_start = core_end
+        number += 1
+    return plans
 
 
 def sha256_file(path: Path) -> str:
@@ -97,7 +140,9 @@ def parse_whisper_jsonl(
     return segments
 
 
-def parse_whisper_cpp_json(text: str, *, global_offset_seconds: float) -> list[Segment]:
+def parse_whisper_cpp_json(
+    text: str, *, global_offset_seconds: float, allow_empty: bool = False
+) -> list[Segment]:
     try:
         payload = json.loads(text)
         transcription = payload["transcription"]
@@ -116,9 +161,88 @@ def parse_whisper_cpp_json(text: str, *, global_offset_seconds: float) -> list[S
             raise TranscriptionError("whisper.cpp timestamps are not monotonic")
         if raw_text:
             segments.append(Segment(start, end, raw_text, normalize_for_matching(raw_text)))
-    if not segments:
+    if not segments and not allow_empty:
         raise TranscriptionError("whisper.cpp produced no non-empty segments")
     return segments
+
+
+def _consecutive_runs(segments: list[Segment]) -> list[tuple[str, int, float]]:
+    runs: list[tuple[str, int, float]] = []
+    index = 0
+    while index < len(segments):
+        following = index + 1
+        while (
+            following < len(segments)
+            and segments[following].normalized_text == segments[index].normalized_text
+        ):
+            following += 1
+        runs.append((
+            segments[index].normalized_text,
+            following - index,
+            max(0.0, segments[following - 1].end - segments[index].start),
+        ))
+        index = following
+    return runs
+
+
+def transcript_quality(segments: list[Segment]) -> dict[str, Any]:
+    lexical = [
+        segment for segment in segments
+        if segment.normalized_text not in NON_SPEECH_MARKERS
+    ]
+    repeated_phrase_seconds = 0.0
+    max_repeated_phrase_seconds = 0.0
+    for text, count, duration in _consecutive_runs(segments):
+        if text in NON_SPEECH_MARKERS or len(text.split()) < 4 or count < 4:
+            continue
+        max_repeated_phrase_seconds = max(max_repeated_phrase_seconds, duration)
+        if duration >= 20:
+            repeated_phrase_seconds += duration
+    marker_seconds = sum(
+        max(0.0, segment.end - segment.start)
+        for segment in segments
+        if segment.normalized_text in NON_SPEECH_MARKERS
+    )
+    return {
+        "segment_count": len(segments),
+        "lexical_segment_count": len(lexical),
+        "lexical_unique_ratio": round(
+            len({segment.normalized_text for segment in lexical}) / len(lexical), 4
+        ) if lexical else 0.0,
+        "max_repeated_phrase_seconds": round(max_repeated_phrase_seconds, 3),
+        "repeated_phrase_seconds": round(repeated_phrase_seconds, 3),
+        "non_speech_marker_seconds": round(marker_seconds, 3),
+    }
+
+
+def window_quality_findings(
+    segments: list[Segment], *, window_duration_seconds: float
+) -> list[str]:
+    if not segments:
+        return ["empty_output"]
+    quality = transcript_quality(segments)
+    findings: list[str] = []
+    if quality["max_repeated_phrase_seconds"] >= 30:
+        findings.append("repeated_phrase_loop")
+    lexical_count = quality["lexical_segment_count"]
+    if lexical_count >= 12 and quality["lexical_unique_ratio"] < 0.25:
+        findings.append("low_lexical_diversity")
+    if (
+        quality["non_speech_marker_seconds"] >= min(60, window_duration_seconds * 0.5)
+        and lexical_count <= 2
+    ):
+        findings.append("non_speech_dominated")
+    return findings
+
+
+def validate_transcript_quality(segments: list[Segment]) -> dict[str, Any]:
+    quality = transcript_quality(segments)
+    if quality["max_repeated_phrase_seconds"] >= 45:
+        raise TranscriptionError(
+            "ASR quality gate rejected a repeated phrase lasting "
+            f"{quality['max_repeated_phrase_seconds']:.1f} seconds"
+        )
+    return quality
 
 
 def owned_segments(
@@ -316,6 +440,57 @@ def run_chunk(
     return payload
 
 
+def _run_whisper_cpp_window(
+    *,
+    input_path: Path,
+    model_path: Path,
+    executable_path: Path,
+    raw_prefix: Path,
+    input_origin_seconds: float,
+    plan: WindowPlan,
+    language: str,
+) -> tuple[list[Segment], float]:
+    wav_path = raw_prefix.with_suffix(".wav")
+    raw_path = raw_prefix.with_suffix(".json")
+    duration_seconds = plan.input_end - plan.input_start
+    ffmpeg_command = [
+        "ffmpeg", "-hide_banner", "-nostdin", "-y",
+        "-ss", f"{plan.input_start:g}", "-i", str(input_path),
+        "-t", f"{duration_seconds:g}", "-ar", "16000", "-ac", "1",
+        "-c:a", "pcm_s16le", str(wav_path),
+    ]
+    whisper_command = [
+        str(executable_path), "-m", str(model_path), "-f", str(wav_path),
+        "-l", language, "-mc", "0", "-sns",
+        "-oj", "-of", str(raw_prefix), "-np", "-ng",
+    ]
+    started = time.perf_counter()
+    try:
+        subprocess.run(ffmpeg_command, check=True, capture_output=True, timeout=900)
+        completed = subprocess.run(
+            whisper_command, check=True, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=21000,
+        )
+        if not raw_path.is_file():
+            raise TranscriptionError(
+                f"whisper.cpp produced no JSON; stderr: {completed.stderr[-1000:]}"
+            )
+        all_segments = parse_whisper_cpp_json(
+            raw_path.read_text(encoding="utf-8"),
+            global_offset_seconds=input_origin_seconds + plan.input_start,
+            allow_empty=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or b"")[-1000:]
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        raise TranscriptionError(f"chunk command failed with exit {exc.returncode}: {stderr}") from exc
+    finally:
+        wav_path.unlink(missing_ok=True)
+        raw_path.unlink(missing_ok=True)
+    return all_segments, time.perf_counter() - started
+
+
 def run_whisper_cpp_chunk(
     *,
     input_path: Path,
@@ -346,6 +521,12 @@ def run_whisper_cpp_chunk(
         "duration_seconds": duration_seconds,
         "own_start": own_start,
         "own_end": own_end,
+        "window_seconds": PRIMARY_WINDOW_SECONDS,
+        "window_overlap_seconds": PRIMARY_WINDOW_OVERLAP_SECONDS,
+        "fallback_window_seconds": FALLBACK_WINDOW_SECONDS,
+        "fallback_window_overlap_seconds": FALLBACK_WINDOW_OVERLAP_SECONDS,
+        "max_context_tokens": 0,
+        "suppress_non_speech_tokens": True,
     }
     fingerprint = hashlib.sha256(
         json.dumps(configuration, sort_keys=True).encode("utf-8")
@@ -357,45 +538,87 @@ def run_whisper_cpp_chunk(
             return existing
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    wav_path = output_path.with_suffix(".wav")
-    raw_prefix = output_path.with_suffix("")
-    raw_path = raw_prefix.with_suffix(".json")
-    ffmpeg_command = [
-        "ffmpeg", "-hide_banner", "-nostdin", "-y",
-        "-ss", f"{chunk_start_seconds:g}", "-i", str(input_path),
-        "-t", f"{duration_seconds:g}", "-ar", "16000", "-ac", "1",
-        "-c:a", "pcm_s16le", str(wav_path),
-    ]
-    whisper_command = [
-        str(executable_path), "-m", str(model_path), "-f", str(wav_path),
-        "-l", language, "-oj", "-of", str(raw_prefix), "-np", "-ng",
-    ]
-    started = time.perf_counter()
-    try:
-        subprocess.run(ffmpeg_command, check=True, capture_output=True, timeout=900)
-        completed = subprocess.run(
-            whisper_command, check=True, capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=21000,
+    chunk_end = chunk_start_seconds + duration_seconds
+    primary_plans = plan_windows(
+        chunk_start_seconds,
+        chunk_end,
+        PRIMARY_WINDOW_SECONDS,
+        PRIMARY_WINDOW_OVERLAP_SECONDS,
+    )
+    all_segments: list[Segment] = []
+    elapsed = 0.0
+    retries: list[dict[str, Any]] = []
+    raw_stem = output_path.with_suffix("").name
+    for primary in primary_plans:
+        raw_prefix = output_path.parent / f"{raw_stem}-window-{primary.number:03d}"
+        segments, window_elapsed = _run_whisper_cpp_window(
+            input_path=input_path,
+            model_path=model_path,
+            executable_path=executable_path,
+            raw_prefix=raw_prefix,
+            input_origin_seconds=input_origin_seconds,
+            plan=primary,
+            language=language,
         )
-        if not raw_path.is_file():
-            raise TranscriptionError(
-                f"whisper.cpp produced no JSON; stderr: {completed.stderr[-1000:]}"
+        elapsed += window_elapsed
+        primary_owned = owned_segments(
+            segments,
+            own_start=input_origin_seconds + primary.core_start,
+            own_end=input_origin_seconds + primary.core_end,
+        )
+        findings = window_quality_findings(
+            primary_owned,
+            window_duration_seconds=primary.core_end - primary.core_start,
+        )
+        if not findings:
+            all_segments.extend(primary_owned)
+            continue
+
+        fallback_segments: list[Segment] = []
+        fallback_plans = plan_windows(
+            primary.core_start,
+            primary.core_end,
+            FALLBACK_WINDOW_SECONDS,
+            FALLBACK_WINDOW_OVERLAP_SECONDS,
+        )
+        for fallback in fallback_plans:
+            fallback_prefix = output_path.parent / (
+                f"{raw_stem}-window-{primary.number:03d}-retry-{fallback.number:03d}"
             )
-        all_segments = parse_whisper_cpp_json(
-            raw_path.read_text(encoding="utf-8"),
-            global_offset_seconds=input_origin_seconds + chunk_start_seconds,
-        )
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or b"")[-1000:]
-        if isinstance(stderr, bytes):
-            stderr = stderr.decode("utf-8", errors="replace")
-        raise TranscriptionError(f"chunk command failed with exit {exc.returncode}: {stderr}") from exc
-    finally:
-        wav_path.unlink(missing_ok=True)
-    elapsed = time.perf_counter() - started
+            retry_segments, retry_elapsed = _run_whisper_cpp_window(
+                input_path=input_path,
+                model_path=model_path,
+                executable_path=executable_path,
+                raw_prefix=fallback_prefix,
+                input_origin_seconds=input_origin_seconds,
+                plan=fallback,
+                language=language,
+            )
+            elapsed += retry_elapsed
+            fallback_segments.extend(owned_segments(
+                retry_segments,
+                own_start=input_origin_seconds + fallback.core_start,
+                own_end=input_origin_seconds + fallback.core_end,
+            ))
+        fallback_segments.sort(key=lambda item: (item.start, item.end))
+        residual = [
+            finding for finding in window_quality_findings(
+                fallback_segments,
+                window_duration_seconds=primary.core_end - primary.core_start,
+            )
+            if finding in {"repeated_phrase_loop", "low_lexical_diversity"}
+        ]
+        if residual:
+            raise TranscriptionError(
+                f"ASR retry remained pathological in window {primary.number}: "
+                + ", ".join(residual)
+            )
+        retries.append({"window": primary.number, "reasons": findings})
+        all_segments.extend(fallback_segments)
+
+    all_segments.sort(key=lambda item: (item.start, item.end))
     kept_segments = owned_segments(all_segments, own_start=own_start, own_end=own_end)
-    if not kept_segments:
-        raise TranscriptionError("chunk ownership removed every ASR segment")
+    quality = validate_transcript_quality(kept_segments)
     payload = {
         "schema_version": 1,
         "state": "transcribed",
@@ -411,6 +634,13 @@ def run_whisper_cpp_chunk(
             "producer_json_repaired_lines": [],
             "ffmpeg_version": ffmpeg_version(),
             "whisper_cpp_version": engine_version,
+            "quality": {
+                **quality,
+                "strategy": "reset_context_windowed_with_fallback",
+                "primary_window_count": len(primary_plans),
+                "retried_window_count": len(retries),
+                "retries": retries,
+            },
         },
         "segment_count_before_ownership": len(all_segments),
         "segments": compact_segments(kept_segments),
