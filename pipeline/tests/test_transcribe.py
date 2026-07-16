@@ -102,6 +102,17 @@ def test_confirmed_one_word_silence_hallucination_is_dropped() -> None:
     assert dropped_seconds == 120
 
 
+def test_sparse_one_word_hallucination_uses_wall_clock_span() -> None:
+    hallucination = [
+        Segment(start, start + 2, "you", "you") for start in (30, 60, 90)
+    ]
+    quality = transcript_quality(hallucination)
+    assert quality["max_repeated_phrase_seconds"] == 62
+    assert window_quality_findings(
+        hallucination, window_duration_seconds=120
+    ) == ["repeated_phrase_loop"]
+
+
 def test_single_long_low_information_segment_triggers_retry() -> None:
     hallucination = [Segment(0, 120, "you", "you")]
     assert window_quality_findings(

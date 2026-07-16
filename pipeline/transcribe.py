@@ -198,7 +198,10 @@ def transcript_quality(segments: list[Segment]) -> dict[str, Any]:
     repeated_phrase_seconds = 0.0
     max_repeated_phrase_seconds = 0.0
     for text, count, duration, _, _ in _consecutive_runs(segments):
-        if text in NON_SPEECH_MARKERS or count < 4:
+        # Sparse silence hallucinations can be emitted as a short token every
+        # 30 seconds.  Their voiced duration is tiny, but three identical
+        # outputs spanning a minute are already strong evidence of a loop.
+        if text in NON_SPEECH_MARKERS or count < 3:
             continue
         max_repeated_phrase_seconds = max(max_repeated_phrase_seconds, duration)
         if duration >= 20:
