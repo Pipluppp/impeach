@@ -219,14 +219,6 @@ class GitHubActions:
         return completed.stdout.strip()
 
     def dispatch_if_idle(self, candidate: IntakeCandidate) -> bool:
-        reviews = json.loads(
-            self._run(
-                "pr", "list", "--head", candidate.branch, "--state", "open", "--json", "number"
-            )
-            or "[]"
-        )
-        if reviews:
-            return False
         runs = json.loads(
             self._run(
                 "run", "list", "--workflow", "process.yml", "--branch", candidate.branch,
@@ -339,7 +331,20 @@ def execute(root: Path, *, dry_run: bool, dispatch: bool) -> dict[str, Any]:
                 "adapter": pdf_adapter,
             }
         )
-        if dispatch and candidate.matched and actions.dispatch_if_idle(candidate):
+        already_processed = (
+            root
+            / "data"
+            / "sessions"
+            / candidate.session_date
+            / "transcript"
+            / "segments.json"
+        ).is_file()
+        if (
+            dispatch
+            and candidate.matched
+            and not already_processed
+            and actions.dispatch_if_idle(candidate)
+        ):
             report["dispatched"].append(candidate.session_date)
     repo.run("switch", "main")
     return report

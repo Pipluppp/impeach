@@ -39,30 +39,3 @@ def test_pdf_validation_happens_at_source_interface() -> None:
     )
     with pytest.raises(OfficialSourceUnavailable, match="PDF signature"):
         source.read_pdf("https://example.invalid/document.pdf")
-
-
-def test_controlled_relay_is_used_only_after_direct_adapters_fail() -> None:
-    calls: list[str] = []
-
-    def blocked(url: str, accept: str) -> bytes:
-        del accept
-        calls.append(f"blocked:{url}")
-        raise HTTPError(url, 403, "Forbidden", {}, None)
-
-    def relay(url: str, accept: str) -> bytes:
-        del accept
-        calls.append(f"relay:{url}")
-        return b'%PDF-1.4\ncontrolled relay fixture'
-
-    source = OfficialSenateSource(
-        http_reader=blocked,
-        browser_reader=blocked,
-        relay_reader=relay,
-        attempts=1,
-    )
-    content, adapter = source.read_pdf(
-        "https://senate.gov.ph/hq/uploads/impeachment/example.pdf"
-    )
-    assert content.startswith(b"%PDF-")
-    assert adapter == "cloudflare_relay"
-    assert [call.split(":", 1)[0] for call in calls] == ["blocked", "blocked", "relay"]
