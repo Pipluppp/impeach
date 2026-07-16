@@ -15,9 +15,8 @@ from urllib.request import Request, urlopen
 
 SENATE_FEED_URL = "https://senate.gov.ph/hq/impeachment/published"
 SENATE_LISTING_URL = "https://senate.gov.ph/services/impeachment-documents"
-SENATE_BROWSER_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+SENATE_HTTP_USER_AGENT = (
+    "SenatePublicDocumentsMonitor/1.0 (+https://github.com/Pipluppp/impeach)"
 )
 SENATE_PDF_PATH_RE = re.compile(
     r"^/hq/uploads/impeachment/(?P<filename>[0-9a-f-]+\.pdf)$", re.IGNORECASE
@@ -38,7 +37,7 @@ def _http_reader(url: str, accept: str) -> bytes:
             "Accept": accept,
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": SENATE_LISTING_URL,
-            "User-Agent": SENATE_BROWSER_USER_AGENT,
+            "User-Agent": SENATE_HTTP_USER_AGENT,
         },
     )
     with urlopen(request, timeout=30) as response:
@@ -110,7 +109,7 @@ def _configured_relay_reader(url: str, accept: str) -> bytes:
         headers={
             "Accept": accept,
             "Authorization": f"Bearer {relay_token}",
-            "User-Agent": SENATE_BROWSER_USER_AGENT,
+            "User-Agent": SENATE_HTTP_USER_AGENT,
         },
     )
     with urlopen(request, timeout=45) as response:
