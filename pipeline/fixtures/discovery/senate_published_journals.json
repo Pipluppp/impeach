@@ -1,0 +1,55 @@
+{
+  "case_number": "004-2026",
+  "title": "Case No. 004-2026",
+  "parties": [
+    {
+      "slug": "journal",
+      "label": "Journal",
+      "heading": "Journal",
+      "sections": [
+        {
+          "id": 6,
+          "title": "Documents",
+          "documents": [
+            {
+              "id": 60,
+              "label": "VPSD Impeachment Trial - Journal No. 06 (July 14 2026)",
+              "url": "/uploads/impeachment/94ab9586-2459-429f-b6fb-f010de53ce03.pdf",
+              "filename": "VPSD_Impeachment Trial Journal_06_July 14 2026.pdf"
+            },
+            {
+              "id": 59,
+              "label": "VPSD Impeachment Trial - Journal No. 5 (July 13, 2026)",
+              "url": "/uploads/impeachment/19357cac-0730-4e8e-bfc4-e2db167c3d6a.pdf",
+              "filename": "VPSD_Impeachment Trial Journal_05_July 13 2026.pdf"
+            },
+            {
+              "id": 58,
+              "label": "VPSD Impeachment Trial - Journal No. 4 (July 8, 2026)",
+              "url": "/uploads/impeachment/d2643a2f-6e40-4dcb-b704-7ab3b3ca2dac.pdf",
+              "filename": "VPSD_Impeachment Trial Journal_04_July 08 2026.pdf"
+            },
+            {
+              "id": 57,
+              "label": "VPSD Impeachment Trial - Journal No. 3 (July 7, 2026)",
+              "url": "/uploads/impeachment/e00e3225-f050-476a-8645-abe403c48025.pdf",
+              "filename": "VPSD_Impeachment Trial Journal_03_July 07 2026 (Updated).pdf"
+            },
+            {
+              "id": 54,
+              "label": "VPSD Impeachment Trial - Journal No. 2 (July 6, 2026)",
+              "url": "/uploads/impeachment/76ba9271-a8b9-40a5-b889-f8a96e1efef9.pdf",
+              "filename": "VPSD_Impeachment Trial Journal_02_July 06 2026.pdf"
+            },
+            {
+              "id": 53,
+              "label": "VPSD Impeachment Trial - Journal No. 1 (May 18, 2026)",
+              "url": "/uploads/impeachment/910ada1c-3207-4024-b6eb-2f1aca886a36.pdf",
+              "filename": "VPSD_Impeachment Trial Journal_01_May 18 2026.pdf"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

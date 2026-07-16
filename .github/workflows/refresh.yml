@@ -1,0 +1,67 @@
+name: Check official session feeds
+
+on:
+  schedule:
+    - cron: "17 1,9 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: official-feed-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: python -m pip install -r pipeline/requirements.txt
+      - name: Prove fixture idempotency
+        shell: bash
+        run: |
+          python pipeline/discovery.py --dry-run \
+            --senate-feed pipeline/fixtures/discovery/senate_published_journals.json \
+            --playlist-feed pipeline/fixtures/discovery/youtube_playlist.json > /tmp/first.json
+          python pipeline/discovery.py --dry-run \
+            --senate-feed pipeline/fixtures/discovery/senate_published_journals.json \
+            --playlist-feed pipeline/fixtures/discovery/youtube_playlist.json > /tmp/second.json
+          cmp /tmp/first.json /tmp/second.json
+      - name: Refresh official Senate and playlist feeds
+        run: python pipeline/discovery.py
+      - name: Select only new or revised matched sessions
+        id: pending
+        run: python pipeline/automation.py pending --github-output "$GITHUB_OUTPUT"
+      - name: Dispatch bounded session processors
+        if: steps.pending.outputs.count != '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATES: ${{ steps.pending.outputs.dates }}
+        run: |
+          python - <<'PY' > /tmp/dates.txt
+          import json, os
+          print("\n".join(json.loads(os.environ["DATES"])))
+          PY
+          while IFS= read -r session_date; do
+            open_reviews=$(gh pr list \
+              --head "automation/session-$session_date" \
+              --state open --json number --jq 'length')
+            if [[ "$open_reviews" != "0" ]]; then
+              echo "Session $session_date already has an open automation review."
+              continue
+            fi
+            gh workflow run process.yml \
+              -f session_date="$session_date" \
+              -f reuse_preserved_source=false \
+              -f publish_pr=true
+          done < /tmp/dates.txt

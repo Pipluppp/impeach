@@ -1,5 +1,43 @@
-docs
-tasks
-templates
+# Supplied context and local research notes (not product source)
 AGENTS.md
 TASK.md
+STATUS.md
+docs/
+tasks/
+templates/
+.work/
+benchmarks/
+
+# Local environments and caches
+.venv/
+.cache/
+__pycache__/
+.pytest_cache/
+node_modules/
+
+# Temporary media and model files (never commit)
+*.aac
+*.flac
+*.m4a
+*.mp3
+*.mp4
+*.ogg
+*.opus
+*.wav
+*.webm
+*.ggml
+*.gguf
+models/
+chunks/
+tmp/
+temp/
+
+# Build and tool output
+dist/
+coverage/
+*.log
+*.tmp
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+web/worker-configuration.d.ts

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "logical_source_id": "journal-06-2026-07-14",
+  "revision": 1,
+  "display_title": "VPSD Impeachment Trial - Journal No. 06 (July 14 2026)",
+  "source_url": "https://senate.gov.ph/hq/uploads/impeachment/94ab9586-2459-429f-b6fb-f010de53ce03.pdf",
+  "listing_url": "https://senate.gov.ph/services/impeachment-documents",
+  "retrieved_at": "2026-07-15T19:45:30Z",
+  "retrieval_method": "rendered_listing_browser_download",
+  "content_type": "application/pdf",
+  "content_type_evidence": "PDF signature %PDF-1.4; direct HTTP HEAD was blocked with 403",
+  "byte_length": 3274123,
+  "page_count": 92,
+  "etag": null,
+  "last_modified": null,
+  "sha256": "1d03355dfc95f8ce49bb8f33e790b3664bb02355a1cba5111588d53ee6351aa9",
+  "supersedes_revision": null
+}

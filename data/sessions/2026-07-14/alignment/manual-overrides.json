@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "session_id": "impeachment-trial-06",
+  "instructions": "Add reviewed session-video ranges here. Exhibit-video timestamps must remain in source time references and must never be copied into start/end.",
+  "overrides": [
+    {
+      "block_id": "j06-p003-b004",
+      "start": 282.8,
+      "end": 289.1,
+      "time_domain": "session_video",
+      "precision": "narrative_summary_range",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed against the official-video caption moment; the journal sentence is a procedural summary, not a word-level transcript."
+    },
+    {
+      "block_id": "j06-p005-b008",
+      "start": 629.074,
+      "end": 631.5,
+      "time_domain": "session_video",
+      "precision": "approximate_dialogue_turn",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed greeting range; the ASR combines adjacent short turns, so the boundary remains approximate."
+    },
+    {
+      "block_id": "j06-p005-b009",
+      "start": 631.5,
+      "end": 633.08,
+      "time_domain": "session_video",
+      "precision": "approximate_dialogue_turn",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed reply range; the ASR combines adjacent short turns, so the boundary remains approximate."
+    },
+    {
+      "block_id": "j06-p005-b025",
+      "start": 694.742,
+      "end": 736.935,
+      "time_domain": "session_video",
+      "precision": "approximate_dialogue_turn",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed full journal turn range. The spoken exhibit reference 51:07 is inside this session range and remains a separate exhibit-domain timestamp."
+    },
+    {
+      "block_id": "j06-p005-b028",
+      "start": 778.843,
+      "end": 782.683,
+      "time_domain": "session_video",
+      "precision": "approximate_dialogue_turn",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed point-of-clarification turn against the acquired session-time ASR and official-video reference."
+    },
+    {
+      "block_id": "j06-p006-b003",
+      "start": 786.003,
+      "end": 795.323,
+      "time_domain": "session_video",
+      "precision": "approximate_dialogue_turn",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed marked-video turn; retained as an approximate turn rather than a word-level timestamp."
+    },
+    {
+      "block_id": "j06-p006-b008",
+      "start": 810.796,
+      "end": 820.796,
+      "time_domain": "session_video",
+      "precision": "approximate_dialogue_turn",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed propriety objection range against the acquired session-time ASR."
+    },
+    {
+      "block_id": "j06-p006-b019",
+      "start": 879.804,
+      "end": 884.204,
+      "time_domain": "session_video",
+      "precision": "approximate_dialogue_turn",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed annex/transcription clarification range against the acquired session-time ASR."
+    },
+    {
+      "block_id": "j06-p062-b026",
+      "start": 12475.8,
+      "end": 12487.72,
+      "time_domain": "session_video",
+      "precision": "narrative_summary_range",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed suspension announcement range; the official journal summarizes the procedural event."
+    },
+    {
+      "block_id": "j06-p063-b007",
+      "start": 13513.0,
+      "end": 13523.8,
+      "time_domain": "session_video",
+      "precision": "narrative_summary_range",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed redirect transition range; retained as summary precision because this block is not formatted as a speaker turn in the journal."
+    },
+    {
+      "block_id": "j06-p092-b003",
+      "start": 20751.32,
+      "end": 20758.638,
+      "time_domain": "session_video",
+      "precision": "narrative_summary_range",
+      "reviewer": "prototype-manual-inspection-2026-07-16",
+      "note": "Reviewed adjournment announcement range; the public label must remain approximate summary precision."
+    }
+  ]
+}

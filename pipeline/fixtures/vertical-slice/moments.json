@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "session_id": "impeachment-trial-06",
+  "youtube_video_id": "GrQeE6SB1YY",
+  "reference_method": "manual inspection of official journal and official-video Filipino original automatic captions",
+  "limitations": "These are Task 01 navigation references, not reviewed final alignments or publication transcript claims.",
+  "moments": [
+    {
+      "id": "call-to-order",
+      "journal_page": 3,
+      "journal_kind": "procedural_event",
+      "journal_excerpt": "called the impeachment trial of Vice President Sara Zimmerman Duterte to order.",
+      "session_range": {"start": 282.8, "end": 289.1, "time_domain": "session_video"},
+      "observed_caption": "The impeachment trial of Vice President Sara Zimmerman Duterte hereby called to order.",
+      "tolerance_seconds": 10
+    },
+    {
+      "id": "cross-examination-greeting",
+      "journal_page": 5,
+      "journal_kind": "speaker_utterance",
+      "journal_excerpt": "Mr. Vinluan. Good afternoon, Attorney Lotoc. Mr. Lotoc. Good afternoon. Sir.",
+      "session_range": {"start": 630.12, "end": 633.08, "time_domain": "session_video"},
+      "observed_caption": "Good afternoon, Attorney Lotoc. Good afternoon, sir.",
+      "tolerance_seconds": 10
+    },
+    {
+      "id": "exhibit-timestamp-trap",
+      "journal_page": 5,
+      "journal_kind": "exhibit_timestamp",
+      "journal_excerpt": "I will show you timestamp 51:07 onwards of the video.",
+      "session_range": {"start": 721.399, "end": 725.36, "time_domain": "session_video"},
+      "exhibit_reference": {
+        "time_seconds": 3067,
+        "time_domain": "exhibit",
+        "exhibit_id": "D-1-145-A"
+      },
+      "observed_caption": "I'll show you time stamp 51-07 ... onwards of the video.",
+      "tolerance_seconds": 10
+    },
+    {
+      "id": "suspension-announcement",
+      "journal_page": 62,
+      "journal_kind": "procedural_event",
+      "journal_excerpt": "With the permission of the Body, the trial was suspended. It was 5:23 p.m. At 5:40 p.m., the trial was resumed.",
+      "session_range": {"start": 12475.8, "end": 12487.72, "time_domain": "session_video"},
+      "observed_caption": "declares a 15 minute recess. We shall resume at 5:38.",
+      "note": "The chair announced a target resumption time; the journal records the actual resumption at 5:40 p.m.",
+      "tolerance_seconds": 15
+    },
+    {
+      "id": "redirect-start",
+      "journal_page": 63,
+      "journal_kind": "speaker_utterance",
+      "journal_excerpt": "Counsel for the Prosecutors, Attorney Ligutan, you may proceed with your redirect, if you have any.",
+      "session_range": {"start": 13513.0, "end": 13523.8, "time_domain": "session_video"},
+      "observed_caption": "Attorney Ligutan you may proceed with your redirect if you have any.",
+      "tolerance_seconds": 15
+    },
+    {
+      "id": "adjournment",
+      "journal_page": 92,
+      "journal_kind": "procedural_event",
+      "journal_excerpt": "declared the impeachment trial adjourned until two o'clock in the afternoon of Wednesday, July 15, 2026.",
+      "session_range": {"start": 20751.32, "end": 20758.638, "time_domain": "session_video"},
+      "observed_caption": "There being no other business to be taken up by the court ... until 2 p.m. of Wednesday, July 15, 2026.",
+      "tolerance_seconds": 15
+    }
+  ]
+}

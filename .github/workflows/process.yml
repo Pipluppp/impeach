@@ -1,0 +1,264 @@
+name: Process synchronized session
+
+on:
+  workflow_dispatch:
+    inputs:
+      session_date:
+        description: Official session date (YYYY-MM-DD)
+        required: true
+        type: string
+      reuse_preserved_source:
+        description: Reprocess a PDF already preserved in Git
+        required: true
+        default: false
+        type: boolean
+      publish_pr:
+        description: Publish generated records in a pull request
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: process-session-${{ inputs.session_date }}
+  cancel-in-progress: false
+
+env:
+  WHISPER_CPP_COMMIT: 23ee03506a91ac3d3f0071b40e66a430eebdfa1d
+  WHISPER_CPP_VERSION: v1.8.6
+  WHISPER_MODEL_SHA256: 60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      matrix: ${{ steps.prepare.outputs.matrix }}
+      session_id: ${{ steps.prepare.outputs.session_id }}
+      video_id: ${{ steps.prepare.outputs.video_id }}
+      duration: ${{ steps.prepare.outputs.duration }}
+      chunk_count: ${{ steps.prepare.outputs.chunk_count }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: python -m pip install -r pipeline/requirements.txt
+      - name: Refresh official feeds
+        if: ${{ !inputs.reuse_preserved_source }}
+        run: python pipeline/discovery.py
+      - name: Preserve PDF, parse journal, and plan ASR
+        id: prepare
+        shell: bash
+        run: |
+          offline=""
+          if [[ "${{ inputs.reuse_preserved_source }}" == "true" ]]; then offline="--offline"; fi
+          python pipeline/automation.py prepare \
+            --session-date "${{ inputs.session_date }}" \
+            --github-output "$GITHUB_OUTPUT" $offline
+      - name: Acquire temporary official-session audio
+        run: >-
+          python pipeline/media.py acquire
+          --video-id "${{ steps.prepare.outputs.video_id }}"
+          --output-dir .cache/media
+          --status-file .cache/media/status.json
+      - uses: actions/cache@v4
+        id: whisper-runtime
+        with:
+          path: .cache/whisper-runtime
+          key: whisper-cpp-linux-x64-${{ env.WHISPER_CPP_COMMIT }}
+      - name: Build pinned whisper.cpp CPU runtime
+        if: steps.whisper-runtime.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          git clone --filter=blob:none https://github.com/ggml-org/whisper.cpp .cache/whisper-source
+          git -C .cache/whisper-source checkout "$WHISPER_CPP_COMMIT"
+          cmake -S .cache/whisper-source -B .cache/whisper-source/build \
+            -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=OFF -DBUILD_SHARED_LIBS=OFF
+          cmake --build .cache/whisper-source/build --config Release -j 2 --target whisper-cli
+          mkdir -p .cache/whisper-runtime/bin
+          cp .cache/whisper-source/build/bin/whisper-cli .cache/whisper-runtime/bin/
+      - uses: actions/cache@v4
+        id: whisper-model
+        with:
+          path: .cache/models/ggml-base.bin
+          key: whisper-model-base-${{ env.WHISPER_MODEL_SHA256 }}
+      - name: Download and verify multilingual model
+        if: steps.whisper-model.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p .cache/models
+          curl -L --fail --retry 3 -o .cache/models/ggml-base.bin \
+            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+          echo "$WHISPER_MODEL_SHA256  .cache/models/ggml-base.bin" | sha256sum --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prepared-session
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            data/discovery/
+            data/manifest.json
+            data/sessions/${{ inputs.session_date }}/source/
+            data/sessions/${{ inputs.session_date }}/journal/
+            data/sessions/${{ inputs.session_date }}/alignment/manual-overrides.json
+            data/sessions/${{ inputs.session_date }}/session.json
+            .work/automation/${{ inputs.session_date }}/plan.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: temporary-session-audio
+          retention-days: 1
+          if-no-files-found: error
+          compression-level: 0
+          path: .cache/media/${{ steps.prepare.outputs.video_id }}-full.m4a
+
+  transcribe:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements-dev.txt
+      - run: python -m pip install -r pipeline/requirements-dev.txt
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/whisper-runtime
+          key: whisper-cpp-linux-x64-${{ env.WHISPER_CPP_COMMIT }}
+          fail-on-cache-miss: true
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/models/ggml-base.bin
+          key: whisper-model-base-${{ env.WHISPER_MODEL_SHA256 }}
+          fail-on-cache-miss: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: temporary-session-audio
+          path: .cache/media
+      - name: Transcribe owned overlapping chunk
+        run: >-
+          python pipeline/transcribe.py whisper-cpp-chunk
+          --input .cache/media/${{ needs.prepare.outputs.video_id }}-full.m4a
+          --model .cache/models/ggml-base.bin
+          --executable .cache/whisper-runtime/bin/whisper-cli
+          --engine-version "${{ env.WHISPER_CPP_VERSION }}"
+          --output .work/asr/chunk-${{ matrix.number }}.json
+          --start "${{ matrix.start }}"
+          --duration "${{ matrix.duration }}"
+          --own-start "${{ matrix.own_start }}"
+          --own-end "${{ matrix.own_end }}"
+          --language auto
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asr-chunk-${{ matrix.number }}
+          retention-days: 1
+          if-no-files-found: error
+          path: .work/asr/chunk-${{ matrix.number }}.json
+
+  finalize:
+    needs: [prepare, transcribe]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements-dev.txt
+      - run: python -m pip install -r pipeline/requirements-dev.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared-session
+          path: .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: asr-chunk-*
+          path: .work/asr
+          merge-multiple: true
+      - name: Merge absolute timestamps, align, and build public data
+        shell: bash
+        run: |
+          python pipeline/automation.py merge \
+            --plan .work/automation/${{ inputs.session_date }}/plan.json \
+            --chunks-dir .work/asr
+          python pipeline/automation.py finalize --session-date "${{ inputs.session_date }}"
+          python -m pytest -q pipeline/tests
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run check
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synchronized-session-${{ inputs.session_date }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            data/discovery/
+            data/manifest.json
+            data/sessions/${{ inputs.session_date }}/
+            web/public/data/sessions/${{ inputs.session_date }}.json
+            web/public/data/sessions/index.json
+
+  publish:
+    if: ${{ inputs.publish_pr }}
+    needs: [prepare, finalize]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: automation/session-${{ inputs.session_date }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Reuse the session review branch
+        shell: bash
+        run: |
+          if git fetch origin "$BRANCH"; then
+            git switch -C "$BRANCH" "origin/$BRANCH"
+          else
+            git switch -c "$BRANCH"
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: synchronized-session-${{ inputs.session_date }}
+          path: .
+      - name: Commit generated civic record and open review PR
+        shell: bash
+        run: |
+          ensure_pr() {
+            gh pr view "$BRANCH" --json url >/dev/null 2>&1 || \
+              gh pr create \
+                --head "$BRANCH" \
+                --title "Process Senate session ${{ inputs.session_date }}" \
+                --body "Automated official-source preservation, PDF parsing, timestamped ASR, alignment, and static public data. Alignment review remains explicit in the generated metadata."
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data web/public/data
+          if git diff --cached --quiet; then
+            echo "The session review branch is already current."
+            if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then ensure_pr; fi
+            exit 0
+          fi
+          git commit -m "Process Senate session ${{ inputs.session_date }}"
+          git push --set-upstream origin "$BRANCH"
+          ensure_pr

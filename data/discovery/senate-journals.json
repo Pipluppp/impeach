@@ -1,0 +1,77 @@
+{
+  "journals": [
+    {
+      "display_title": "VPSD Impeachment Trial - Journal No. 1 (May 18, 2026)",
+      "feed_document_id": 53,
+      "filename": "VPSD_Impeachment Trial Journal_01_May 18 2026.pdf",
+      "journal_number": 1,
+      "listing_url": "https://senate.gov.ph/services/impeachment-documents",
+      "logical_source_id": "journal-01-2026-05-18",
+      "session_date": "2026-05-18",
+      "session_id": "impeachment-trial-01",
+      "source_url": "https://senate.gov.ph/hq/uploads/impeachment/910ada1c-3207-4024-b6eb-2f1aca886a36.pdf",
+      "updated_marker": false
+    },
+    {
+      "display_title": "VPSD Impeachment Trial - Journal No. 2 (July 6, 2026)",
+      "feed_document_id": 54,
+      "filename": "VPSD_Impeachment Trial Journal_02_July 06 2026.pdf",
+      "journal_number": 2,
+      "listing_url": "https://senate.gov.ph/services/impeachment-documents",
+      "logical_source_id": "journal-02-2026-07-06",
+      "session_date": "2026-07-06",
+      "session_id": "impeachment-trial-02",
+      "source_url": "https://senate.gov.ph/hq/uploads/impeachment/76ba9271-a8b9-40a5-b889-f8a96e1efef9.pdf",
+      "updated_marker": false
+    },
+    {
+      "display_title": "VPSD Impeachment Trial - Journal No. 3 (July 7, 2026)",
+      "feed_document_id": 57,
+      "filename": "VPSD_Impeachment Trial Journal_03_July 07 2026 (Updated).pdf",
+      "journal_number": 3,
+      "listing_url": "https://senate.gov.ph/services/impeachment-documents",
+      "logical_source_id": "journal-03-2026-07-07",
+      "session_date": "2026-07-07",
+      "session_id": "impeachment-trial-03",
+      "source_url": "https://senate.gov.ph/hq/uploads/impeachment/e00e3225-f050-476a-8645-abe403c48025.pdf",
+      "updated_marker": true
+    },
+    {
+      "display_title": "VPSD Impeachment Trial - Journal No. 4 (July 8, 2026)",
+      "feed_document_id": 58,
+      "filename": "VPSD_Impeachment Trial Journal_04_July 08 2026.pdf",
+      "journal_number": 4,
+      "listing_url": "https://senate.gov.ph/services/impeachment-documents",
+      "logical_source_id": "journal-04-2026-07-08",
+      "session_date": "2026-07-08",
+      "session_id": "impeachment-trial-04",
+      "source_url": "https://senate.gov.ph/hq/uploads/impeachment/d2643a2f-6e40-4dcb-b704-7ab3b3ca2dac.pdf",
+      "updated_marker": false
+    },
+    {
+      "display_title": "VPSD Impeachment Trial - Journal No. 5 (July 13, 2026)",
+      "feed_document_id": 59,
+      "filename": "VPSD_Impeachment Trial Journal_05_July 13 2026.pdf",
+      "journal_number": 5,
+      "listing_url": "https://senate.gov.ph/services/impeachment-documents",
+      "logical_source_id": "journal-05-2026-07-13",
+      "session_date": "2026-07-13",
+      "session_id": "impeachment-trial-05",
+      "source_url": "https://senate.gov.ph/hq/uploads/impeachment/19357cac-0730-4e8e-bfc4-e2db167c3d6a.pdf",
+      "updated_marker": false
+    },
+    {
+      "display_title": "VPSD Impeachment Trial - Journal No. 06 (July 14 2026)",
+      "feed_document_id": 60,
+      "filename": "VPSD_Impeachment Trial Journal_06_July 14 2026.pdf",
+      "journal_number": 6,
+      "listing_url": "https://senate.gov.ph/services/impeachment-documents",
+      "logical_source_id": "journal-06-2026-07-14",
+      "session_date": "2026-07-14",
+      "session_id": "impeachment-trial-06",
+      "source_url": "https://senate.gov.ph/hq/uploads/impeachment/94ab9586-2459-429f-b6fb-f010de53ce03.pdf",
+      "updated_marker": false
+    }
+  ],
+  "schema_version": 1
+}

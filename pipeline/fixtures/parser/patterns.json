@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "narrative_procedural_summary",
+      "page": 4,
+      "contains": "The Presiding Officer directed the parties to enter their appearances.",
+      "expected_kind": "procedural_event"
+    },
+    {
+      "name": "near_verbatim_dialogue",
+      "page": 5,
+      "contains": "Good afternoon, Attorney Lotoc.",
+      "expected_kind": "speaker_utterance",
+      "expected_speaker": "Mr. Vinluan"
+    },
+    {
+      "name": "page_boundary_continuation",
+      "page": 62,
+      "contains": "pamilya sapagkat",
+      "expected_kind": "narrative_summary",
+      "expects_continuation": true
+    },
+    {
+      "name": "malformed_character_normalization",
+      "page": 56,
+      "contains": "ORDER OF THE PRESH)ING OFFICER",
+      "normalized_contains": "order of the presiding officer"
+    }
+  ]
+}
