@@ -69,8 +69,7 @@ jobs:
       - name: Install media runtime
         if: ${{ inputs.prepared_run_id == '' }}
         run: sudo apt-get update && sudo apt-get install --yes ffmpeg
-      - if: ${{ inputs.prepared_run_id == '' }}
-        run: python -m pip install -r pipeline/requirements.txt
+      - run: python -m pip install -r pipeline/requirements.txt
       - name: Refresh official feeds
         if: ${{ inputs.prepared_run_id == '' && !inputs.reuse_preserved_source }}
         run: python pipeline/discovery.py
