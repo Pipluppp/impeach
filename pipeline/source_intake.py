@@ -86,10 +86,12 @@ def plan_intake(
     matches: list[dict[str, Any]],
     *,
     pending_branch_dates: set[str] | None = None,
+    requested_dates: set[str] | None = None,
 ) -> list[IntakeCandidate]:
-    """Select forward-only sources, revisions, and already-staged pending sessions."""
+    """Select daily forward-only work plus explicitly requested historical sessions."""
 
     pending_branch_dates = pending_branch_dates or set()
+    requested_dates = requested_dates or set()
     match_by_id = {item["session_id"]: item for item in matches}
     preserved_dates = [
         journal["session_date"]
@@ -102,7 +104,9 @@ def plan_intake(
     for journal in journals:
         date = journal["session_date"]
         source = _current_source_metadata(root, date)
-        if date in pending_branch_dates and source is None:
+        if date in requested_dates:
+            reason = "requested_session"
+        elif date in pending_branch_dates and source is None:
             reason = "pending_video_or_processing"
         elif source is None and date > latest_preserved:
             reason = "new_journal"
@@ -274,14 +278,33 @@ def _read_live_inputs(root: Path, source: OfficialSenateSource) -> tuple[list[di
     return journals, playlist, matches, adapter
 
 
-def execute(root: Path, *, dry_run: bool, dispatch: bool) -> dict[str, Any]:
+def execute(
+    root: Path,
+    *,
+    dry_run: bool,
+    dispatch: bool,
+    requested_dates: set[str] | None = None,
+) -> dict[str, Any]:
     repo = GitRepository(root)
     if not dry_run:
         repo.sync_main()
     source = OfficialSenateSource()
     journals, playlist, matches, adapter = _read_live_inputs(root, source)
+    requested_dates = requested_dates or set()
+    published_dates = {item["session_date"] for item in journals}
+    missing_dates = sorted(requested_dates - published_dates)
+    if missing_dates:
+        raise SourceIntakeError(
+            "requested session is not in the official journal feed: " + ", ".join(missing_dates)
+        )
     pending_dates = repo.pending_branch_dates()
-    candidates = plan_intake(root, journals, matches, pending_branch_dates=pending_dates)
+    candidates = plan_intake(
+        root,
+        journals,
+        matches,
+        pending_branch_dates=pending_dates,
+        requested_dates=requested_dates,
+    )
     report: dict[str, Any] = {
         "feed_adapter": adapter,
         "journals": len(journals),
@@ -355,6 +378,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("command", choices=("inspect", "run"))
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--no-dispatch", action="store_true")
+    parser.add_argument(
+        "--session-date",
+        action="append",
+        default=[],
+        help="explicitly process an official historical session (repeatable)",
+    )
     return parser
 
 
@@ -365,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
             args.root.resolve(),
             dry_run=args.command == "inspect",
             dispatch=not args.no_dispatch,
+            requested_dates=set(args.session_date),
         )
     except (SourceIntakeError, OfficialSourceUnavailable, DiscoveryUnavailable, subprocess.SubprocessError) as exc:
         print(f"SOURCE_INTAKE_FAILED: {exc}", file=sys.stderr)

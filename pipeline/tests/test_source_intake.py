@@ -70,3 +70,18 @@ def test_pending_source_branch_is_revisited_until_video_appears(tmp_path: Path) 
         pending_branch_dates={"2026-07-15"},
     )
     assert plan[0].reason == "pending_video_or_processing"
+
+
+def test_requested_historical_session_bypasses_forward_only_gate(tmp_path: Path) -> None:
+    journals, matches = records()
+    write_current_source(tmp_path, "2026-07-14", journals[1]["source_url"])
+    plan = plan_intake(
+        tmp_path,
+        journals,
+        matches,
+        requested_dates={"2026-07-13"},
+    )
+    assert [(item.session_date, item.reason, item.video_id) for item in plan] == [
+        ("2026-07-13", "requested_session", "video-1"),
+        ("2026-07-15", "new_journal", None),
+    ]

@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { sessionDateFromPath, sessionHref, sessionLinkLabel } from './routes'
 import { activeBlockAt, clampPlayerHeight, formatTime, hasSpecificTiming, readUrlState, specificTimingRanges, timedBlocks, writeUrlState } from './sync'
 import type { JournalBlock, PublicSession, PublicSessionIndex } from './types'
 import { useYouTubePlayer } from './useYouTubePlayer'
@@ -60,6 +61,12 @@ const JournalDocument = memo(function JournalDocument({
 
 export default function App() {
   const initialState = useMemo(() => readUrlState(window.location.search), [])
+  const legacySession = useMemo(() => new URLSearchParams(window.location.search).get('session'), [])
+  const routedSession = useMemo(() => sessionDateFromPath(window.location.pathname), [])
+  const hasLegacyReaderState = legacySession !== null || initialState.block !== null || initialState.time !== null
+  const isHome = window.location.pathname === '/' && !hasLegacyReaderState
+  const requestedSession = routedSession ?? legacySession
+  const [sessionIndex, setSessionIndex] = useState<PublicSessionIndex | null>(null)
   const [data, setData] = useState<PublicSession | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(initialState.time ?? 0)
@@ -76,28 +83,28 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch(SESSION_INDEX_URL, { signal: controller.signal })
-      .then((response) => {
+    const load = async () => {
+      try {
+        const response = await fetch(SESSION_INDEX_URL, { signal: controller.signal })
         if (!response.ok) throw new Error(`Session index returned HTTP ${response.status}`)
-        return response.json() as Promise<PublicSessionIndex>
-      })
-      .then((index) => {
-        const requested = new URLSearchParams(window.location.search).get('session')
-        const selected = index.sessions.find((item) => item.date === (requested ?? index.latest))
-        if (!selected) throw new Error(`Session ${requested} is not published`)
-        return fetch(selected.path, { signal: controller.signal })
-      })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Session data returned HTTP ${response.status}`)
-        return response.json() as Promise<PublicSession>
-      })
-      .then(setData)
-      .catch((error: unknown) => {
+        const index = await response.json() as PublicSessionIndex
+        setSessionIndex(index)
+        if (isHome) return
+        const selectedDate = requestedSession ?? (window.location.pathname === '/' ? index.latest : null)
+        if (!selectedDate) throw new Error(`Route ${window.location.pathname} is not a published session`)
+        const selected = index.sessions.find((item) => item.date === selectedDate)
+        if (!selected) throw new Error(`Session ${selectedDate} is not published`)
+        const sessionResponse = await fetch(selected.path, { signal: controller.signal })
+        if (!sessionResponse.ok) throw new Error(`Session data returned HTTP ${sessionResponse.status}`)
+        setData(await sessionResponse.json() as PublicSession)
+      } catch (error: unknown) {
         if (error instanceof DOMException && error.name === 'AbortError') return
         setLoadError(error instanceof Error ? error.message : 'Session data did not load.')
-      })
+      }
+    }
+    void load()
     return () => controller.abort()
-  }, [])
+  }, [isHome, requestedSession])
 
   useEffect(() => {
     const clampToViewport = () => setPlayerHeight((height) => clampPlayerHeight(height, window.innerHeight, window.innerWidth))
@@ -186,6 +193,19 @@ export default function App() {
       <p>{loadError}</p><button type="button" onClick={() => window.location.reload()}>Try again</button>
     </main>
   )
+  if (isHome) {
+    if (!sessionIndex) return <main className="session-home" aria-live="polite"><p>Loading sessions…</p></main>
+    return (
+      <main className="session-home">
+        <h1>Impeachment trial sessions</h1>
+        <ul className="session-list">
+          {[...sessionIndex.sessions]
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .map((session) => <li key={session.date}><a href={sessionHref(session.date)}>{sessionLinkLabel(session.date)}</a></li>)}
+        </ul>
+      </main>
+    )
+  }
   if (!data) return <main className="state-page" aria-live="polite"><p className="eyebrow">Official Journal</p><h1>Preparing the session reader…</h1></main>
 
   return (
@@ -211,6 +231,7 @@ export default function App() {
       </header>
 
       <section className="reader-pane" ref={readerPane} aria-label="Synchronized official journal">
+        <a className="back-home" href="/">Back</a>
         <button type="button" className="outline-trigger" onClick={() => setOutlineOpen(true)} aria-label="Open session outline" aria-expanded={outlineOpen}>Outline</button>
         <div className="reading-grid">
         <aside className={outlineOpen ? 'outline is-open' : 'outline'} aria-label="Session outline">

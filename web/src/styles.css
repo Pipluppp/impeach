@@ -28,6 +28,12 @@ a { color: inherit; text-underline-offset: .22em; }
 button:focus-visible, a:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--highlight); outline-offset: 2px; }
 a:hover { color: var(--highlight-ink); background: var(--highlight); text-decoration: none; }
 
+.session-home { height: 100svh; overflow: auto; padding: 2rem; color: var(--ink); background: var(--paper); }
+.session-home h1 { margin: 0 0 1rem; font: 500 1rem/1.4 "Geist", sans-serif; }
+.session-home p { margin: 0; }
+.session-list { list-style: none; margin: 0; padding: 0; }
+.session-list li { margin: .35rem 0; }
+
 .state-page { min-height: 100svh; display: grid; align-content: center; max-width: 760px; margin: auto; padding: 2rem; background: var(--paper); }
 .state-page h1 { margin: .4rem 0 1rem; font: 600 clamp(2.3rem, 6vw, 5rem)/.98 "Geist", sans-serif; }
 .state-page button { width: fit-content; padding: .7rem 1rem; }
@@ -47,6 +53,7 @@ a:hover { color: var(--highlight-ink); background: var(--highlight); text-decora
 .stage-resizer:focus-visible { outline-offset: -3px; }
 
 .reader-pane { position: relative; flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; color: var(--ink); background: var(--paper); scrollbar-color: #5d5851 var(--paper); scrollbar-width: thin; }
+.back-home { position: absolute; z-index: 15; top: .9rem; left: 1rem; font-size: .72rem; }
 .reading-grid { width: min(1040px, calc(100% - 3rem)); margin: 0 auto; padding: 2.8rem 0 9rem; display: grid; grid-template-columns: minmax(180px, 220px) minmax(520px, 760px); justify-content: center; gap: clamp(2rem, 6vw, 6rem); align-items: start; }
 
 .outline { position: sticky; top: 2rem; max-height: calc(100dvh - 4rem); overflow: auto; scrollbar-width: thin; }
