@@ -7,13 +7,13 @@ on:
         description: Official session date (YYYY-MM-DD)
         required: true
         type: string
-      reuse_preserved_source:
-        description: Reprocess a PDF already preserved in Git
+      publish_pr:
+        description: Publish generated records in a pull request
         required: true
         default: false
         type: boolean
-      publish_pr:
-        description: Publish generated records in a pull request
+      validate_source_only:
+        description: Validate the preserved source handoff without media or ASR
         required: true
         default: false
         type: boolean
@@ -36,8 +36,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SENATE_SOURCE_RELAY_URL: ${{ vars.SENATE_SOURCE_RELAY_URL }}
-  SENATE_SOURCE_RELAY_TOKEN: ${{ secrets.SENATE_SOURCE_RELAY_TOKEN }}
   WHISPER_CPP_COMMIT: 23ee03506a91ac3d3f0071b40e66a430eebdfa1d
   WHISPER_CPP_VERSION: v1.8.6
   WHISPER_MODEL_SHA256: 60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe
@@ -65,16 +63,13 @@ jobs:
           cache: pip
           cache-dependency-path: pipeline/requirements.txt
       - uses: actions/setup-node@v6
-        if: ${{ inputs.prepared_run_id == '' }}
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         with:
           node-version: "24"
       - name: Install media runtime
-        if: ${{ inputs.prepared_run_id == '' }}
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         run: sudo apt-get update && sudo apt-get install --yes ffmpeg
       - run: python -m pip install -r pipeline/requirements.txt
-      - name: Refresh official feeds
-        if: ${{ inputs.prepared_run_id == '' && !inputs.reuse_preserved_source }}
-        run: python pipeline/discovery.py
       - name: Reuse prepared session
         if: ${{ inputs.prepared_run_id != '' }}
         uses: actions/download-artifact@v4
@@ -93,13 +88,11 @@ jobs:
               --github-output "$GITHUB_OUTPUT"
             exit 0
           fi
-          offline=""
-          if [[ "${{ inputs.reuse_preserved_source }}" == "true" ]]; then offline="--offline"; fi
           python pipeline/automation.py prepare \
             --session-date "${{ inputs.session_date }}" \
-            --github-output "$GITHUB_OUTPUT" $offline
+            --github-output "$GITHUB_OUTPUT" --offline
       - name: Start credential-free YouTube attestation
-        if: ${{ inputs.prepared_run_id == '' }}
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         shell: bash
         run: |
           docker run --detach --rm --name youtube-pot-provider \
@@ -111,7 +104,7 @@ jobs:
           docker logs youtube-pot-provider
           exit 1
       - name: Materialize optional YouTube account cookies
-        if: ${{ inputs.prepared_run_id == '' }}
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         shell: bash
         env:
           YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
@@ -122,7 +115,7 @@ jobs:
             > .cache/media-auth/youtube-cookies.txt
           chmod 600 .cache/media-auth/youtube-cookies.txt
       - name: Acquire temporary official-session audio
-        if: ${{ inputs.prepared_run_id == '' }}
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         shell: bash
         run: |
           cookie_args=()
@@ -135,18 +128,19 @@ jobs:
             --status-file .cache/media/status.json \
             "${cookie_args[@]}"
       - name: Remove media credentials and stop attestation
-        if: ${{ always() && inputs.prepared_run_id == '' }}
+        if: ${{ always() && inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         shell: bash
         run: |
           rm -f .cache/media-auth/youtube-cookies.txt
           docker stop youtube-pot-provider || true
       - uses: actions/cache@v4
         id: whisper-runtime
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         with:
           path: .cache/whisper-runtime
           key: whisper-cpp-linux-x64-${{ env.WHISPER_CPP_COMMIT }}
       - name: Build pinned whisper.cpp CPU runtime
-        if: steps.whisper-runtime.outputs.cache-hit != 'true'
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only && steps.whisper-runtime.outputs.cache-hit != 'true' }}
         shell: bash
         run: |
           git clone --filter=blob:none https://github.com/ggml-org/whisper.cpp .cache/whisper-source
@@ -158,11 +152,12 @@ jobs:
           cp .cache/whisper-source/build/bin/whisper-cli .cache/whisper-runtime/bin/
       - uses: actions/cache@v4
         id: whisper-model
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         with:
           path: .cache/models/ggml-base.bin
           key: whisper-model-base-${{ env.WHISPER_MODEL_SHA256 }}
       - name: Download and verify multilingual model
-        if: steps.whisper-model.outputs.cache-hit != 'true'
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only && steps.whisper-model.outputs.cache-hit != 'true' }}
         shell: bash
         run: |
           mkdir -p .cache/models
@@ -184,7 +179,7 @@ jobs:
             data/sessions/${{ inputs.session_date }}/session.json
             .work/automation/${{ inputs.session_date }}/plan.json
       - uses: actions/upload-artifact@v4
-        if: ${{ inputs.prepared_run_id == '' }}
+        if: ${{ inputs.prepared_run_id == '' && !inputs.validate_source_only }}
         with:
           name: temporary-session-audio
           retention-days: 1
@@ -193,7 +188,7 @@ jobs:
           path: .cache/media/${{ steps.prepare.outputs.video_id }}-full.m4a
 
   transcribe:
-    if: ${{ inputs.resume_run_id == '' }}
+    if: ${{ inputs.resume_run_id == '' && !inputs.validate_source_only }}
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 355
@@ -254,7 +249,8 @@ jobs:
     needs: [prepare, transcribe]
     if: >-
       ${{ always() && (inputs.resume_run_id != '' ||
-      (needs.prepare.result == 'success' && needs.transcribe.result == 'success')) }}
+      (!inputs.validate_source_only && needs.prepare.result == 'success' &&
+      needs.transcribe.result == 'success')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
