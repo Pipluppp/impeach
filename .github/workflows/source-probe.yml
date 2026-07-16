@@ -169,3 +169,68 @@ jobs:
           finally:
               driver.quit()
           PY
+
+  runner-pools:
+    name: ${{ matrix.runner }} honest client
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-slim
+          - ubuntu-24.04-arm
+          - windows-2025
+          - macos-15
+          - macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Probe listing, feed, and PDF without cookies
+        shell: python
+        run: |
+          import json
+          import time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request, urlopen
+
+          runner = "${{ matrix.runner }}"
+          endpoints = {
+              "listing": ("https://senate.gov.ph/services/impeachment-documents", "text/html,*/*"),
+              "feed": ("https://senate.gov.ph/hq/impeachment/published", "application/json,*/*"),
+              "pdf": ("https://senate.gov.ph/hq/uploads/impeachment/94ab9586-2459-429f-b6fb-f010de53ce03.pdf", "application/pdf,*/*"),
+          }
+          for name, (url, accept) in endpoints.items():
+              request = Request(url, headers={
+                  "Accept": accept,
+                  "User-Agent": "SenatePublicDocumentsMonitor/1.0 (+https://github.com/Pipluppp/impeach)",
+              })
+              try:
+                  with urlopen(request, timeout=45) as response:
+                      body = response.read()
+                      result = {
+                          "runner": runner,
+                          "endpoint": name,
+                          "status": response.status,
+                          "type": response.headers.get("content-type", ""),
+                          "bytes": len(body),
+                          "signature": body[:5].decode("ascii", "replace"),
+                          "ray": response.headers.get("cf-ray", ""),
+                      }
+              except HTTPError as error:
+                  body = error.read()
+                  result = {
+                      "runner": runner,
+                      "endpoint": name,
+                      "status": error.code,
+                      "type": error.headers.get("content-type", ""),
+                      "bytes": len(body),
+                      "signature": body[:5].decode("ascii", "replace"),
+                      "ray": error.headers.get("cf-ray", ""),
+                  }
+              except (URLError, TimeoutError, OSError) as error:
+                  result = {"runner": runner, "endpoint": name, "error": str(error)}
+              print(json.dumps(result, sort_keys=True))
+              print(f"::notice title={runner} {name}::{json.dumps(result, sort_keys=True)}")
+              time.sleep(2)
