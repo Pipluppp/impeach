@@ -1,57 +1,55 @@
 {
-  "schema_version": 1,
-  "session_id": "impeachment-trial-06",
-  "session_date": "2026-07-14",
   "journal_number": 6,
-  "source_revision": 1,
-  "youtube": {
-    "playlist_id": "PLY4L49cjE9ow",
-    "video_id": "GrQeE6SB1YY",
-    "title": "Impeachment Trial of Vice President Sara Zimmerman Duterte (July 14, 2026)",
-    "channel": "Senate of the Philippines",
-    "channel_id": "UCPJWi44tskVVMNyKzYrPoGg",
-    "watch_url": "https://www.youtube.com/watch?v=GrQeE6SB1YY",
-    "duration_seconds": 20776.147,
-    "upload_date": "2026-07-14",
-    "match_method": "official_playlist_title_date_unique",
-    "match_confidence": 1.0,
-    "match_evidence": "The official six-entry impeachment playlist had exactly one entry dated July 14, 2026."
-  },
   "processing": {
+    "alignment": {
+      "manual_reviewed": 11,
+      "name": "monotonic-journal-asr",
+      "needs_review": 1460,
+      "timed_blocks": 2125,
+      "unresolved_conflicts": 0,
+      "version": "0.4.0"
+    },
+    "asr": {
+      "engine": "whisper.cpp",
+      "engine_version": "v1.8.6",
+      "model": "ggml-base.bin",
+      "model_sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+      "purpose": "internal_alignment_aid",
+      "segment_count": 4311,
+      "time_domain": "session_video"
+    },
     "media_source": {
       "name": "yt-dlp",
-      "version": "2026.01.31",
+      "temporary_media_policy": "git_ignored",
       "validated_segment": {
-        "start_seconds": 600.0,
-        "end_seconds": 1800.0,
         "duration_seconds": 1200.010998,
-        "sha256": "486cd8d3041d27a76acc5ce16443848ffb74b799086cd36d42bcaf6686222c0e"
+        "end_seconds": 1800.0,
+        "sha256": "486cd8d3041d27a76acc5ce16443848ffb74b799086cd36d42bcaf6686222c0e",
+        "start_seconds": 600.0
       },
-      "temporary_media_policy": "git_ignored"
+      "version": "2026.01.31"
     },
     "pdf_parser": {
       "name": "pymupdf-blocks",
-      "version": "0.3.0",
-      "pymupdf_version": "1.28.0"
+      "pymupdf_version": "1.28.0",
+      "version": "0.3.0"
     },
-    "asr": {
-      "engine": "ffmpeg-whisper",
-      "engine_version": "0.1.0",
-      "model": "ggml-base.bin",
-      "model_sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
-      "segment_count": 4710,
-      "time_domain": "session_video",
-      "purpose": "internal_alignment_aid"
-    },
-    "alignment": {
-      "name": "ordered-token-window",
-      "version": "0.3.0",
-      "timed_blocks": 1815,
-      "manual_reviewed": 11,
-      "needs_review": 1764,
-      "unresolved_conflicts": 414
-    },
-    "state": "prototype_ready_review_pending",
+    "state": "automated_review_pending",
     "vertical_slice_fixture": "../../../pipeline/fixtures/vertical-slice/moments.json"
+  },
+  "schema_version": 1,
+  "session_date": "2026-07-14",
+  "session_id": "impeachment-trial-06",
+  "source_revision": 1,
+  "youtube": {
+    "channel": "Senate of the Philippines",
+    "channel_id": "UCPJWi44tskVVMNyKzYrPoGg",
+    "duration_seconds": 20776.0,
+    "match_confidence": 1.0,
+    "match_method": "official_playlist_title_date_unique",
+    "playlist_id": "PLY4L49cjE9ow",
+    "title": "Impeachment Trial of Vice President Sara Zimmerman Duterte (July 14, 2026)",
+    "video_id": "GrQeE6SB1YY",
+    "watch_url": "https://www.youtube.com/watch?v=GrQeE6SB1YY"
   }
 }
