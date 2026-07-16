@@ -18,6 +18,9 @@ jobs:
   discover:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      SENATE_SOURCE_RELAY_URL: ${{ vars.SENATE_SOURCE_RELAY_URL }}
+      SENATE_SOURCE_RELAY_TOKEN: ${{ secrets.SENATE_SOURCE_RELAY_TOKEN }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6

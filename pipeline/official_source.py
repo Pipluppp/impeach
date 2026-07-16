@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import re
 import time
 from collections.abc import Callable
 from typing import Any
@@ -13,6 +15,9 @@ from urllib.request import Request, urlopen
 
 SENATE_FEED_URL = "https://senate.gov.ph/hq/impeachment/published"
 SENATE_LISTING_URL = "https://senate.gov.ph/services/impeachment-documents"
+SENATE_PDF_PATH_RE = re.compile(
+    r"^/hq/uploads/impeachment/(?P<filename>[0-9a-f-]+\.pdf)$", re.IGNORECASE
+)
 
 
 class OfficialSourceUnavailable(RuntimeError):
@@ -80,6 +85,33 @@ def _browser_reader(url: str, accept: str) -> bytes:
     return base64.b64decode(result["body"], validate=True)
 
 
+def _configured_relay_reader(url: str, accept: str) -> bytes:
+    relay_base = os.environ.get("SENATE_SOURCE_RELAY_URL", "").rstrip("/")
+    relay_token = os.environ.get("SENATE_SOURCE_RELAY_TOKEN", "")
+    if not relay_base or not relay_token:
+        raise OfficialSourceUnavailable("Senate source relay URL/token is not configured")
+    if url == SENATE_FEED_URL:
+        relay_url = f"{relay_base}/feed"
+    else:
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(url)
+        match = SENATE_PDF_PATH_RE.fullmatch(parsed.path)
+        if parsed.scheme != "https" or parsed.hostname != "senate.gov.ph" or not match:
+            raise OfficialSourceUnavailable("relay refused a non-Senate document URL")
+        relay_url = f"{relay_base}/document/{match.group('filename')}"
+    request = Request(
+        relay_url,
+        headers={
+            "Accept": accept,
+            "Authorization": f"Bearer {relay_token}",
+            "User-Agent": "senate-journal-reader/0.1 (+local civic-record prototype)",
+        },
+    )
+    with urlopen(request, timeout=45) as response:
+        return response.read()
+
+
 class OfficialSenateSource:
     """Small interface hiding source retries, browser fallback, and validation."""
 
@@ -88,6 +120,7 @@ class OfficialSenateSource:
         *,
         http_reader: Reader = _http_reader,
         browser_reader: Reader = _browser_reader,
+        relay_reader: Reader | None = None,
         attempts: int = 3,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
@@ -95,6 +128,12 @@ class OfficialSenateSource:
             raise ValueError("attempts must be between 1 and 5")
         self._http_reader = http_reader
         self._browser_reader = browser_reader
+        self._relay_reader = relay_reader or (
+            _configured_relay_reader
+            if os.environ.get("SENATE_SOURCE_RELAY_URL")
+            and os.environ.get("SENATE_SOURCE_RELAY_TOKEN")
+            else None
+        )
         self._attempts = attempts
         self._sleeper = sleeper
 
@@ -111,6 +150,11 @@ class OfficialSenateSource:
             return self._browser_reader(url, accept), "browser"
         except Exception as exc:
             errors.append(f"browser fallback: {exc}")
+        if self._relay_reader is not None:
+            try:
+                return self._relay_reader(url, accept), "cloudflare_relay"
+            except Exception as exc:
+                errors.append(f"relay fallback: {exc}")
         raise OfficialSourceUnavailable(f"official fetch failed for {url}; {'; '.join(errors)}")
 
     def read_feed(self) -> tuple[dict[str, Any], str]:
