@@ -1,6 +1,8 @@
 const SENATE_ORIGIN = 'https://senate.gov.ph'
 const FEED_PATH = '/hq/impeachment/published'
 const DOCUMENT_RE = /^\/api\/official-senate\/document\/([0-9a-f-]+\.pdf)$/i
+const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+  + 'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
 
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> }
@@ -36,8 +38,9 @@ const relay = async (request: Request, upstreamPath: string, cacheControl: strin
     method: request.method,
     headers: {
       accept: upstreamPath.endsWith('.pdf') ? 'application/pdf,*/*' : 'application/json,*/*',
+      'accept-language': 'en-US,en;q=0.9',
       referer: `${SENATE_ORIGIN}/services/impeachment-documents`,
-      'user-agent': 'senate-journal-reader/0.1 (+public civic-record relay)',
+      'user-agent': BROWSER_USER_AGENT,
     },
     redirect: 'follow',
   })
