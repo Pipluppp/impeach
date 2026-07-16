@@ -1,0 +1,165 @@
+name: Probe official Senate source
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/source-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Compare bounded HTTP client profiles
+        shell: bash
+        run: |
+          set -u
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+
+          listing='https://senate.gov.ph/services/impeachment-documents'
+          feed='https://senate.gov.ph/hq/impeachment/published'
+          pdf='https://senate.gov.ph/hq/uploads/impeachment/94ab9586-2459-429f-b6fb-f010de53ce03.pdf'
+          honest_ua='SenatePublicDocumentsMonitor/1.0 (+https://github.com/Pipluppp/impeach)'
+          chrome_ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+
+          header_value() {
+            local name="$1" file="$2"
+            awk -v wanted="${name,,}" '
+              BEGIN { IGNORECASE=1 }
+              index(tolower($0), wanted ":") == 1 {
+                sub(/^[^:]+:[[:space:]]*/, "")
+                sub(/\r$/, "")
+                value=$0
+              }
+              END { print value }
+            ' "$file"
+          }
+
+          probe() {
+            local profile="$1" endpoint="$2" url="$3" accept="$4" ua="$5" http1="$6" referer="$7"
+            local headers="$temp_dir/$profile-$endpoint.headers"
+            local body="$temp_dir/$profile-$endpoint.body"
+            local args=(
+              --silent --show-error --location
+              --connect-timeout 15 --max-time 60
+              --dump-header "$headers" --output "$body"
+              --write-out '%{http_code}|%{remote_ip}|%{http_version}|%{size_download}'
+              --header "Accept: $accept"
+            )
+            if [[ -n "$ua" ]]; then args+=(--user-agent "$ua"); fi
+            if [[ "$http1" == true ]]; then args+=(--http1.1); fi
+            if [[ "$referer" == true ]]; then
+              args+=(--referer "$listing" --header 'Accept-Language: en-US,en;q=0.9')
+            fi
+
+            local metrics status remote http bytes type ray waf mitigated signature
+            metrics="$(curl "${args[@]}" "$url" || true)"
+            IFS='|' read -r status remote http bytes <<<"$metrics"
+            type="$(header_value content-type "$headers")"
+            ray="$(header_value cf-ray "$headers")"
+            waf="$(header_value x-waf "$headers")"
+            mitigated="$(header_value cf-mitigated "$headers")"
+            signature="$(head -c 5 "$body" | tr -cd '[:print:]')"
+            printf '%-22s %-7s status=%-3s http=%-3s bytes=%-8s type=%-28s sig=%-5s mitigated=%-9s waf=%s ray=%s\n' \
+              "$profile" "$endpoint" "$status" "$http" "$bytes" "$type" "$signature" "$mitigated" "$waf" "$ray"
+            sleep 2
+          }
+
+          for endpoint in listing feed pdf; do
+            case "$endpoint" in
+              listing) url="$listing"; accept='text/html,*/*' ;;
+              feed) url="$feed"; accept='application/json,*/*' ;;
+              pdf) url="$pdf"; accept='application/pdf,*/*' ;;
+            esac
+            probe curl-default "$endpoint" "$url" "$accept" '' false false
+          done
+
+          for endpoint in listing feed pdf; do
+            case "$endpoint" in
+              listing) url="$listing"; accept='text/html,*/*' ;;
+              feed) url="$feed"; accept='application/json,*/*' ;;
+              pdf) url="$pdf"; accept='application/pdf,*/*' ;;
+            esac
+            probe honest-http2 "$endpoint" "$url" "$accept" "$honest_ua" false false
+          done
+
+          for endpoint in listing feed pdf; do
+            case "$endpoint" in
+              listing) url="$listing"; accept='text/html,*/*' ;;
+              feed) url="$feed"; accept='application/json,*/*' ;;
+              pdf) url="$pdf"; accept='application/pdf,*/*' ;;
+            esac
+            probe honest-http1 "$endpoint" "$url" "$accept" "$honest_ua" true false
+          done
+
+          for endpoint in listing feed pdf; do
+            case "$endpoint" in
+              listing) url="$listing"; accept='text/html,*/*' ;;
+              feed) url="$feed"; accept='application/json,*/*' ;;
+              pdf) url="$pdf"; accept='application/pdf,*/*' ;;
+            esac
+            probe chrome-no-referer "$endpoint" "$url" "$accept" "$chrome_ua" false false
+          done
+
+          for endpoint in listing feed pdf; do
+            case "$endpoint" in
+              listing) url="$listing"; accept='text/html,*/*' ;;
+              feed) url="$feed"; accept='application/json,*/*' ;;
+              pdf) url="$pdf"; accept='application/pdf,*/*' ;;
+            esac
+            probe chrome-with-referer "$endpoint" "$url" "$accept" "$chrome_ua" false true
+          done
+
+      - name: Try a clean real Chromium session
+        shell: bash
+        run: |
+          python -m pip install --quiet selenium==4.46.0
+          python - <<'PY'
+          import json
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+
+          listing = "https://senate.gov.ph/services/impeachment-documents"
+          urls = {
+              "feed": "https://senate.gov.ph/hq/impeachment/published",
+              "pdf": "https://senate.gov.ph/hq/uploads/impeachment/94ab9586-2459-429f-b6fb-f010de53ce03.pdf",
+          }
+          options = Options()
+          options.add_argument("--headless=new")
+          options.add_argument("--no-sandbox")
+          options.add_argument("--disable-dev-shm-usage")
+          driver = webdriver.Chrome(options=options)
+          try:
+              driver.set_page_load_timeout(45)
+              driver.set_script_timeout(60)
+              driver.get(listing)
+              print(json.dumps({
+                  "profile": "real-chromium",
+                  "endpoint": "listing",
+                  "title": driver.title,
+                  "blocked": "403" in driver.title or "attention required" in driver.title.casefold(),
+              }, sort_keys=True))
+              for name, url in urls.items():
+                  result = driver.execute_async_script(
+                      """
+                      const [url, done] = arguments;
+                      fetch(url, {credentials: "include", cache: "no-store"})
+                        .then(async response => {
+                          const bytes = new Uint8Array(await response.arrayBuffer());
+                          const signature = String.fromCharCode(...bytes.slice(0, 5));
+                          done({status: response.status, type: response.headers.get("content-type"),
+                                bytes: bytes.length, signature});
+                        })
+                        .catch(error => done({error: String(error)}));
+                      """,
+                      url,
+                  )
+                  print(json.dumps({"profile": "real-chromium", "endpoint": name, **result}, sort_keys=True))
+          finally:
+              driver.quit()
+          PY
