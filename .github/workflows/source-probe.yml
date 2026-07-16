@@ -67,6 +67,8 @@ jobs:
             signature="$(head -c 5 "$body" | tr -cd '[:print:]')"
             printf '%-22s %-7s status=%-3s http=%-3s bytes=%-8s type=%-28s sig=%-5s mitigated=%-9s waf=%s ray=%s\n' \
               "$profile" "$endpoint" "$status" "$http" "$bytes" "$type" "$signature" "$mitigated" "$waf" "$ray"
+            printf '::notice title=%s %s::status=%s http=%s bytes=%s type=%s signature=%s mitigated=%s waf=%s ray=%s\n' \
+              "$profile" "$endpoint" "$status" "$http" "$bytes" "$type" "$signature" "$mitigated" "$waf" "$ray"
             sleep 2
           }
 
@@ -138,12 +140,14 @@ jobs:
               driver.set_page_load_timeout(45)
               driver.set_script_timeout(60)
               driver.get(listing)
-              print(json.dumps({
+              listing_result = {
                   "profile": "real-chromium",
                   "endpoint": "listing",
                   "title": driver.title,
                   "blocked": "403" in driver.title or "attention required" in driver.title.casefold(),
-              }, sort_keys=True))
+              }
+              print(json.dumps(listing_result, sort_keys=True))
+              print(f"::notice title=real-chromium listing::{json.dumps(listing_result, sort_keys=True)}")
               for name, url in urls.items():
                   result = driver.execute_async_script(
                       """
@@ -159,7 +163,9 @@ jobs:
                       """,
                       url,
                   )
-                  print(json.dumps({"profile": "real-chromium", "endpoint": name, **result}, sort_keys=True))
+                  observed = {"profile": "real-chromium", "endpoint": name, **result}
+                  print(json.dumps(observed, sort_keys=True))
+                  print(f"::notice title=real-chromium {name}::{json.dumps(observed, sort_keys=True)}")
           finally:
               driver.quit()
           PY
