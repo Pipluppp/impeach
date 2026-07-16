@@ -40,6 +40,20 @@ class AudioArtifact:
     acquisition_seconds: float
 
 
+@dataclass(frozen=True)
+class YtDlpStrategy:
+    name: str
+    extractor_args: str | None = None
+
+
+# The default client is preferred. android_vr is the documented credential-free
+# fallback that currently requires neither account cookies nor a YouTube PO token.
+YT_DLP_STRATEGIES = (
+    YtDlpStrategy("default"),
+    YtDlpStrategy("android_vr", "youtube:player_client=android_vr"),
+)
+
+
 class MediaSource(Protocol):
     def acquire(
         self,
@@ -179,7 +193,7 @@ class YtDlpMediaSource:
             shutil.rmtree(staging_dir)
         staging_dir.mkdir(parents=True)
         template = staging_dir / f"{key}.%(ext)s"
-        command = [
+        command_base = [
             "yt-dlp",
             "--no-playlist",
             "--no-warnings",
@@ -200,39 +214,52 @@ class YtDlpMediaSource:
             str(template),
         ]
         if start is not None and end is not None:
-            command.extend(["--download-sections", f"*{start:g}-{end:g}"])
-        command.append(f"https://www.youtube.com/watch?v={self.video_id}")
+            command_base.extend(["--download-sections", f"*{start:g}-{end:g}"])
 
         try:
-            completed = subprocess.run(
-                command, capture_output=True, text=True, timeout=7200
-            )
-            if completed.returncode != 0:
-                detail = (completed.stderr or completed.stdout).strip().splitlines()
-                raise AcquisitionError(
-                    "yt-dlp failed: " + (detail[-1] if detail else f"exit {completed.returncode}")
+            failures: list[str] = []
+            for strategy in YT_DLP_STRATEGIES:
+                shutil.rmtree(staging_dir)
+                staging_dir.mkdir(parents=True)
+                command = list(command_base)
+                if strategy.extractor_args:
+                    command.extend(["--extractor-args", strategy.extractor_args])
+                command.append(f"https://www.youtube.com/watch?v={self.video_id}")
+                completed = subprocess.run(
+                    command, capture_output=True, text=True, timeout=7200
                 )
-            candidates = [
-                path
-                for path in staging_dir.iterdir()
-                if path.is_file() and path.suffix.casefold() == ".m4a"
-            ]
-            if len(candidates) != 1:
-                raise AcquisitionError(
-                    f"yt-dlp produced {len(candidates)} validated-format candidates, expected one"
+                if completed.returncode != 0:
+                    detail = (completed.stderr or completed.stdout).strip().splitlines()
+                    failures.append(
+                        f"{strategy.name}: "
+                        + (detail[-1] if detail else f"exit {completed.returncode}")
+                    )
+                    continue
+                candidates = [
+                    path
+                    for path in staging_dir.iterdir()
+                    if path.is_file() and path.suffix.casefold() == ".m4a"
+                ]
+                if len(candidates) != 1:
+                    failures.append(
+                        f"{strategy.name}: produced {len(candidates)} m4a candidates"
+                    )
+                    continue
+                probe = probe_audio(candidates[0])
+                validate_requested_duration(probe, start, end)
+                candidates[0].replace(final_path)
+                return AudioArtifact(
+                    path=relative_or_name(final_path),
+                    adapter=f"yt-dlp:{strategy.name}",
+                    video_id=self.video_id,
+                    requested_start=start,
+                    requested_end=end,
+                    probe=probe,
+                    reused=False,
+                    acquisition_seconds=round(time.perf_counter() - started, 3),
                 )
-            probe = probe_audio(candidates[0])
-            validate_requested_duration(probe, start, end)
-            candidates[0].replace(final_path)
-            return AudioArtifact(
-                path=relative_or_name(final_path),
-                adapter="yt-dlp",
-                video_id=self.video_id,
-                requested_start=start,
-                requested_end=end,
-                probe=probe,
-                reused=False,
-                acquisition_seconds=round(time.perf_counter() - started, 3),
+            raise AcquisitionError(
+                "yt-dlp failed for all credential-free clients: " + "; ".join(failures)
             )
         finally:
             if staging_dir.exists():
