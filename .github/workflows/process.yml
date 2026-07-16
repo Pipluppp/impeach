@@ -77,15 +77,34 @@ jobs:
           done
           docker logs youtube-pot-provider
           exit 1
+      - name: Materialize optional YouTube account cookies
+        shell: bash
+        env:
+          YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
+        run: |
+          if [[ -z "$YOUTUBE_COOKIES_B64" ]]; then exit 0; fi
+          mkdir -p .cache/media-auth
+          printf '%s' "$YOUTUBE_COOKIES_B64" | base64 --decode \
+            > .cache/media-auth/youtube-cookies.txt
+          chmod 600 .cache/media-auth/youtube-cookies.txt
       - name: Acquire temporary official-session audio
-        run: >-
-          python pipeline/media.py acquire
-          --video-id "${{ steps.prepare.outputs.video_id }}"
-          --output-dir .cache/media
-          --status-file .cache/media/status.json
-      - name: Stop YouTube attestation
+        shell: bash
+        run: |
+          cookie_args=()
+          if [[ -f .cache/media-auth/youtube-cookies.txt ]]; then
+            cookie_args=(--cookies-file .cache/media-auth/youtube-cookies.txt)
+          fi
+          python pipeline/media.py acquire \
+            --video-id "${{ steps.prepare.outputs.video_id }}" \
+            --output-dir .cache/media \
+            --status-file .cache/media/status.json \
+            "${cookie_args[@]}"
+      - name: Remove media credentials and stop attestation
         if: ${{ always() }}
-        run: docker stop youtube-pot-provider || true
+        shell: bash
+        run: |
+          rm -f .cache/media-auth/youtube-cookies.txt
+          docker stop youtube-pot-provider || true
       - uses: actions/cache@v4
         id: whisper-runtime
         with:

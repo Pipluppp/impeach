@@ -155,8 +155,9 @@ class LocalFileMediaSource:
 
 
 class YtDlpMediaSource:
-    def __init__(self, video_id: str):
+    def __init__(self, video_id: str, cookies_file: Path | None = None):
         self.video_id = video_id
+        self.cookies_file = cookies_file
 
     def key(self, start: float | None, end: float | None) -> str:
         if start is None and end is None:
@@ -219,6 +220,10 @@ class YtDlpMediaSource:
             "-o",
             str(template),
         ]
+        if self.cookies_file is not None:
+            if not self.cookies_file.is_file():
+                raise AcquisitionError("configured YouTube cookies file does not exist")
+            command_base.extend(["--cookies", str(self.cookies_file)])
         if start is not None and end is not None:
             command_base.extend(["--download-sections", f"*{start:g}-{end:g}"])
 
@@ -257,7 +262,11 @@ class YtDlpMediaSource:
                 candidates[0].replace(final_path)
                 return AudioArtifact(
                     path=relative_or_name(final_path),
-                    adapter=f"yt-dlp:{strategy.name}",
+                    adapter=(
+                        f"yt-dlp:{strategy.name}+cookies"
+                        if self.cookies_file
+                        else f"yt-dlp:{strategy.name}"
+                    ),
                     video_id=self.video_id,
                     requested_start=start,
                     requested_end=end,
@@ -298,10 +307,11 @@ def main(argv: list[str] | None = None) -> int:
     acquire.add_argument("--output-dir", type=Path, default=ROOT / ".cache" / "media")
     acquire.add_argument("--start", type=float)
     acquire.add_argument("--end", type=float)
+    acquire.add_argument("--cookies-file", type=Path)
     acquire.add_argument("--status-file", type=Path)
     args = parser.parse_args(argv)
 
-    source = YtDlpMediaSource(args.video_id)
+    source = YtDlpMediaSource(args.video_id, cookies_file=args.cookies_file)
     try:
         artifact = source.acquire(output_dir=args.output_dir, start=args.start, end=args.end)
         payload = artifact_json(artifact)

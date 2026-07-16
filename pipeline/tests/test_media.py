@@ -34,6 +34,8 @@ def test_youtube_acquisition_retries_with_android_vr(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[list[str]] = []
+    cookies = tmp_path / "youtube-cookies.txt"
+    cookies.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
 
     def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
@@ -50,11 +52,21 @@ def test_youtube_acquisition_retries_with_android_vr(
         lambda _: AudioProbe(10.0, "aac", 44_100, 2),
     )
 
-    artifact = YtDlpMediaSource("official-video").acquire(output_dir=tmp_path)
+    artifact = YtDlpMediaSource("official-video", cookies_file=cookies).acquire(
+        output_dir=tmp_path
+    )
 
-    assert artifact.adapter == "yt-dlp:android_vr"
+    assert artifact.adapter == "yt-dlp:android_vr+cookies"
     assert len(calls) == 2
     assert "youtube:player_client=android_vr" in calls[1]
+    assert calls[1][calls[1].index("--cookies") + 1] == str(cookies)
+
+
+def test_youtube_acquisition_rejects_missing_cookie_file(tmp_path: Path) -> None:
+    with pytest.raises(AcquisitionError, match="cookies file does not exist"):
+        YtDlpMediaSource(
+            "official-video", cookies_file=tmp_path / "missing.txt"
+        ).acquire(output_dir=tmp_path)
 
 
 def test_probe_and_local_file_adapter(tmp_path: Path) -> None:
