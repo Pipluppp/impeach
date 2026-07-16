@@ -8,6 +8,7 @@ import pytest
 from pipeline.transcribe import (
     Segment,
     TranscriptionError,
+    drop_confirmed_low_information_repetition,
     merge_payloads,
     owned_segments,
     parse_whisper_cpp_json,
@@ -89,6 +90,16 @@ def test_non_speech_window_retries_but_does_not_invent_lexical_failure() -> None
         "non_speech_dominated"
     ]
     assert validate_transcript_quality(blank)["max_repeated_phrase_seconds"] == 0
+
+
+def test_confirmed_one_word_silence_hallucination_is_dropped() -> None:
+    hallucination = [Segment(index * 30, index * 30 + 30, "you", "you") for index in range(4)]
+    assert "low_lexical_diversity" in window_quality_findings(
+        hallucination, window_duration_seconds=120
+    )
+    filtered, dropped_seconds = drop_confirmed_low_information_repetition(hallucination)
+    assert filtered == []
+    assert dropped_seconds == 120
 
 
 def test_merge_is_monotonic_and_reassigns_ids() -> None:

@@ -26,6 +26,7 @@ PRIMARY_WINDOW_OVERLAP_SECONDS = 5.0
 FALLBACK_WINDOW_SECONDS = 30.0
 FALLBACK_WINDOW_OVERLAP_SECONDS = 2.0
 NON_SPEECH_MARKERS = {
+    "",
     "blank_audio",
     "music",
     "applause",
@@ -166,8 +167,10 @@ def parse_whisper_cpp_json(
     return segments
 
 
-def _consecutive_runs(segments: list[Segment]) -> list[tuple[str, int, float]]:
-    runs: list[tuple[str, int, float]] = []
+def _consecutive_runs(
+    segments: list[Segment],
+) -> list[tuple[str, int, float, int, int]]:
+    runs: list[tuple[str, int, float, int, int]] = []
     index = 0
     while index < len(segments):
         following = index + 1
@@ -180,6 +183,8 @@ def _consecutive_runs(segments: list[Segment]) -> list[tuple[str, int, float]]:
             segments[index].normalized_text,
             following - index,
             max(0.0, segments[following - 1].end - segments[index].start),
+            index,
+            following,
         ))
         index = following
     return runs
@@ -192,8 +197,8 @@ def transcript_quality(segments: list[Segment]) -> dict[str, Any]:
     ]
     repeated_phrase_seconds = 0.0
     max_repeated_phrase_seconds = 0.0
-    for text, count, duration in _consecutive_runs(segments):
-        if text in NON_SPEECH_MARKERS or len(text.split()) < 4 or count < 4:
+    for text, count, duration, _, _ in _consecutive_runs(segments):
+        if text in NON_SPEECH_MARKERS or count < 4:
             continue
         max_repeated_phrase_seconds = max(max_repeated_phrase_seconds, duration)
         if duration >= 20:
@@ -209,6 +214,9 @@ def transcript_quality(segments: list[Segment]) -> dict[str, Any]:
         "lexical_unique_ratio": round(
             len({segment.normalized_text for segment in lexical}) / len(lexical), 4
         ) if lexical else 0.0,
+        "lexical_seconds": round(sum(
+            max(0.0, segment.end - segment.start) for segment in lexical
+        ), 3),
         "max_repeated_phrase_seconds": round(max_repeated_phrase_seconds, 3),
         "repeated_phrase_seconds": round(repeated_phrase_seconds, 3),
         "non_speech_marker_seconds": round(marker_seconds, 3),
@@ -222,10 +230,20 @@ def window_quality_findings(
         return ["empty_output"]
     quality = transcript_quality(segments)
     findings: list[str] = []
-    if quality["max_repeated_phrase_seconds"] >= 30:
+    if quality["max_repeated_phrase_seconds"] >= 20:
         findings.append("repeated_phrase_loop")
     lexical_count = quality["lexical_segment_count"]
-    if lexical_count >= 12 and quality["lexical_unique_ratio"] < 0.25:
+    low_diversity_span = quality["lexical_seconds"] >= min(
+        60, window_duration_seconds * 0.5
+    )
+    if (
+        (lexical_count >= 12 and quality["lexical_unique_ratio"] < 0.25)
+        or (
+            lexical_count >= 3
+            and quality["lexical_unique_ratio"] <= 0.34
+            and low_diversity_span
+        )
+    ):
         findings.append("low_lexical_diversity")
     if (
         quality["non_speech_marker_seconds"] >= min(60, window_duration_seconds * 0.5)
@@ -233,6 +251,26 @@ def window_quality_findings(
     ):
         findings.append("non_speech_dominated")
     return findings
+
+
+def drop_confirmed_low_information_repetition(
+    segments: list[Segment], *, minimum_seconds: float = 45
+) -> tuple[list[Segment], float]:
+    drop_indexes: set[int] = set()
+    dropped_seconds = 0.0
+    for text, count, duration, start, end in _consecutive_runs(segments):
+        if (
+            text not in NON_SPEECH_MARKERS
+            and len(text.split()) <= 2
+            and count >= 3
+            and duration >= minimum_seconds
+        ):
+            drop_indexes.update(range(start, end))
+            dropped_seconds += duration
+    return (
+        [segment for index, segment in enumerate(segments) if index not in drop_indexes],
+        round(dropped_seconds, 3),
+    )
 
 
 def validate_transcript_quality(segments: list[Segment]) -> dict[str, Any]:
@@ -601,6 +639,9 @@ def run_whisper_cpp_chunk(
                 own_end=input_origin_seconds + fallback.core_end,
             ))
         fallback_segments.sort(key=lambda item: (item.start, item.end))
+        fallback_segments, dropped_seconds = drop_confirmed_low_information_repetition(
+            fallback_segments
+        )
         residual = [
             finding for finding in window_quality_findings(
                 fallback_segments,
@@ -613,7 +654,10 @@ def run_whisper_cpp_chunk(
                 f"ASR retry remained pathological in window {primary.number}: "
                 + ", ".join(residual)
             )
-        retries.append({"window": primary.number, "reasons": findings})
+        retry_record: dict[str, Any] = {"window": primary.number, "reasons": findings}
+        if dropped_seconds:
+            retry_record["dropped_low_information_seconds"] = dropped_seconds
+        retries.append(retry_record)
         all_segments.extend(fallback_segments)
 
     all_segments.sort(key=lambda item: (item.start, item.end))
