@@ -10,30 +10,33 @@
       "status": "review_required"
     },
     {
-      "current_revision": 0,
+      "current_revision": 1,
       "journal_number": 2,
+      "session_data_path": "sessions/2026-07-06/session.json",
       "session_date": "2026-07-06",
       "session_id": "impeachment-trial-02",
       "source_url": "https://senate.gov.ph/hq/uploads/impeachment/76ba9271-a8b9-40a5-b889-f8a96e1efef9.pdf",
-      "status": "discovered",
+      "status": "automated_review_pending",
       "youtube_video_id": "fq9R5ojvVko"
     },
     {
-      "current_revision": 0,
+      "current_revision": 1,
       "journal_number": 3,
+      "session_data_path": "sessions/2026-07-07/session.json",
       "session_date": "2026-07-07",
       "session_id": "impeachment-trial-03",
       "source_url": "https://senate.gov.ph/hq/uploads/impeachment/e00e3225-f050-476a-8645-abe403c48025.pdf",
-      "status": "discovered",
+      "status": "automated_review_pending",
       "youtube_video_id": "DHXtpcWqORo"
     },
     {
-      "current_revision": 0,
+      "current_revision": 1,
       "journal_number": 4,
+      "session_data_path": "sessions/2026-07-08/session.json",
       "session_date": "2026-07-08",
       "session_id": "impeachment-trial-04",
       "source_url": "https://senate.gov.ph/hq/uploads/impeachment/d2643a2f-6e40-4dcb-b704-7ab3b3ca2dac.pdf",
-      "status": "discovered",
+      "status": "automated_review_pending",
       "youtube_video_id": "qRMdgle9yR8"
     },
     {
@@ -53,7 +56,7 @@
       "session_date": "2026-07-14",
       "session_id": "impeachment-trial-06",
       "source_url": "https://senate.gov.ph/hq/uploads/impeachment/94ab9586-2459-429f-b6fb-f010de53ce03.pdf",
-      "status": "discovered",
+      "status": "automated_review_pending",
       "youtube_video_id": "GrQeE6SB1YY"
     }
   ]
