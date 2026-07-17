@@ -3,6 +3,12 @@
   "schema_version": 1,
   "sessions": [
     {
+      "date": "2026-07-06",
+      "journal_number": 2,
+      "path": "/data/sessions/2026-07-06.json",
+      "title": "Impeachment Trial of Vice President Sara Zimmerman Duterte (July 6, 2026)"
+    },
+    {
       "date": "2026-07-13",
       "journal_number": 5,
       "path": "/data/sessions/2026-07-13.json",
