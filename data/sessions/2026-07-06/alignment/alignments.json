@@ -1,0 +1,115 @@
+{
+  "aligner": {
+    "name": "monotonic-journal-asr",
+    "version": "0.4.0"
+  },
+  "diagnostics": {
+    "abstained_spoken_blocks": 8,
+    "auto_accepted": 2,
+    "candidate_blocks": 3,
+    "contextual_ranges": 0,
+    "direct_matches": 3,
+    "eligible_spoken_blocks": 11,
+    "manual_reviewed": 0,
+    "selected_direct_blocks": 3
+  },
+  "entries": [
+    {
+      "block_id": "j02-p005-b009",
+      "confidence": 0.593,
+      "end": 716.68,
+      "evidence": {
+        "asr_segment_ids": [
+          "asr-000112",
+          "asr-000113",
+          "asr-000114"
+        ],
+        "claim_limit": "ASR-assisted turn range; not a word-level timestamp.",
+        "distinctive_tokens": 6,
+        "exact_token_coverage": 0.793,
+        "match_score": 0.7411,
+        "method": "monotonic_fuzzy_asr_path",
+        "token_coverage": 0.793,
+        "uniqueness_margin": 0.7411
+      },
+      "precision": "approximate_dialogue_turn",
+      "review_state": "auto_accepted",
+      "start": 709.78,
+      "time_domain": "session_video"
+    },
+    {
+      "block_id": "j02-p005-b014",
+      "confidence": 0.9,
+      "end": 3552.96,
+      "evidence": {
+        "asr_segment_ids": [
+          "asr-000696",
+          "asr-000697",
+          "asr-000698",
+          "asr-000699",
+          "asr-000700",
+          "asr-000701"
+        ],
+        "claim_limit": "ASR-assisted turn range; not a word-level timestamp.",
+        "distinctive_tokens": 20,
+        "exact_token_coverage": 0.8374,
+        "match_score": 0.8759,
+        "method": "monotonic_fuzzy_asr_path",
+        "token_coverage": 0.8737,
+        "uniqueness_margin": 0.0648
+      },
+      "precision": "approximate_dialogue_turn",
+      "review_state": "auto_accepted",
+      "start": 3535.24,
+      "time_domain": "session_video"
+    },
+    {
+      "block_id": "j02-p018-b005",
+      "confidence": 0.147,
+      "end": 6061.9,
+      "evidence": {
+        "asr_segment_ids": [
+          "asr-001266",
+          "asr-001267"
+        ],
+        "claim_limit": "ASR-assisted turn range; not a word-level timestamp.",
+        "distinctive_tokens": 7,
+        "exact_token_coverage": 0.3934,
+        "match_score": 0.5448,
+        "method": "monotonic_fuzzy_asr_path",
+        "token_coverage": 0.5731,
+        "uniqueness_margin": 0.5448
+      },
+      "precision": "approximate_dialogue_turn",
+      "review_state": "needs_review",
+      "start": 6051.3,
+      "time_domain": "session_video"
+    }
+  ],
+  "entry_count": 3,
+  "policy": {
+    "asr_role": "internal_alignment_aid",
+    "authoritative_text": "official_senate_journal",
+    "automatic_score_threshold": 0.72,
+    "automatic_uniqueness_margin": 0.055,
+    "dialogue_precision": "approximate_turn_range_not_word_exact",
+    "exhibit_timestamps_are_session_seeks": false,
+    "speaker_label_is_spoken_query": false,
+    "structural_text_is_spoken_query": false,
+    "summary_precision": "bounded_context_not_verbatim",
+    "uncertain_blocks_may_be_unaligned": true
+  },
+  "review_queue": [
+    {
+      "block_id": "j02-p018-b005",
+      "confidence": 0.147,
+      "precision": "approximate_dialogue_turn",
+      "reason": "low_confidence_or_contextual_range"
+    }
+  ],
+  "schema_version": 1,
+  "session_id": "impeachment-trial-02",
+  "time_domain": "session_video",
+  "unresolved_conflicts": [],
+  "youtube_video_id": "fq9R5ojvVko"
+}
