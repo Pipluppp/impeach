@@ -151,6 +151,24 @@ def merge_session_chunks(
                     item["runtime"].get("quality", {}).get("retried_window_count", 0)
                     for item in chunk_payloads
                 ),
+                "quarantined_window_count": sum(
+                    item["runtime"].get("quality", {}).get(
+                        "quarantined_window_count", 0
+                    )
+                    for item in chunk_payloads
+                ),
+                "quarantined_seconds": round(sum(
+                    item["runtime"].get("quality", {}).get(
+                        "quarantined_seconds", 0
+                    )
+                    for item in chunk_payloads
+                ), 3),
+                "dropped_low_information_seconds": round(sum(
+                    item["runtime"].get("quality", {}).get(
+                        "dropped_low_information_seconds", 0
+                    )
+                    for item in chunk_payloads
+                ), 3),
             },
         },
         "segment_count": len(segments),
