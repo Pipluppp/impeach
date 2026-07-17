@@ -165,7 +165,8 @@ jobs:
             https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
           echo "$WHISPER_MODEL_SHA256  .cache/models/ggml-base.bin" | sha256sum --check
       - uses: actions/upload-artifact@v4
-        if: ${{ inputs.prepared_run_id == '' }}
+        # Re-publish a reused preparation so every successful ASR run is
+        # independently resumable; its original one-day artifact may expire.
         with:
           name: prepared-session
           retention-days: 1
