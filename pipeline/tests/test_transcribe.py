@@ -12,6 +12,7 @@ from pipeline.transcribe import (
     merge_payloads,
     owned_segments,
     parse_whisper_cpp_json,
+    parse_whisper_cpp_json_file,
     parse_whisper_jsonl,
     plan_windows,
     repair_ffmpeg_whisper_line,
@@ -20,6 +21,7 @@ from pipeline.transcribe import (
     window_quality_findings,
     write_json_atomic,
 )
+import pipeline.transcribe as transcribe_module
 
 
 def test_whisper_jsonl_becomes_session_video_time() -> None:
@@ -51,6 +53,15 @@ def test_whisper_cpp_json_offsets_become_session_video_time() -> None:
     segments = parse_whisper_cpp_json(raw, global_offset_seconds=600)
     assert [(item.start, item.end) for item in segments] == [(600, 601.25), (601.25, 603)]
     assert segments[0].text == "Magandang afternoon."
+
+
+def test_whisper_cpp_file_replaces_an_invalid_model_byte(tmp_path: Path) -> None:
+    raw_path = tmp_path / "whisper.json"
+    raw_path.write_bytes(
+        b'{"transcription":[{"offsets":{"from":0,"to":1000},"text":"S\xa7nate"}]}'
+    )
+    segments = parse_whisper_cpp_json_file(raw_path, global_offset_seconds=0)
+    assert segments[0].text == "S\ufffdnate"
 
 
 def test_chunk_overlap_has_single_owner_at_boundary() -> None:
@@ -100,6 +111,112 @@ def test_confirmed_one_word_silence_hallucination_is_dropped() -> None:
     filtered, dropped_seconds = drop_confirmed_low_information_repetition(hallucination)
     assert filtered == []
     assert dropped_seconds == 120
+
+
+def test_confirmed_multiword_repetition_is_dropped() -> None:
+    hallucination = [
+        Segment(index * 30, index * 30 + 30, "Thank you, Mr. President", "thank you mr president")
+        for index in range(4)
+    ]
+    filtered, dropped_seconds = drop_confirmed_low_information_repetition(hallucination)
+    assert filtered == []
+    assert dropped_seconds == 120
+
+
+def test_pathological_retry_is_quarantined_instead_of_failing_chunk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_path = tmp_path / "audio.m4a"
+    model_path = tmp_path / "model.bin"
+    executable_path = tmp_path / "whisper-cli"
+    for path in (input_path, model_path, executable_path):
+        path.write_bytes(b"fixture")
+
+    def pathological_window(**kwargs: object) -> tuple[list[Segment], float]:
+        plan = kwargs["plan"]
+        assert isinstance(plan, transcribe_module.WindowPlan)
+        segments: list[Segment] = []
+        cursor = plan.core_start
+        while cursor < plan.core_end:
+            end = min(cursor + 30, plan.core_end)
+            segments.append(Segment(
+                cursor,
+                end,
+                "Thank you, Mr. President",
+                "thank you mr president",
+            ))
+            cursor = end
+        return segments, 0.01
+
+    monkeypatch.setattr(transcribe_module, "_run_whisper_cpp_window", pathological_window)
+    monkeypatch.setattr(transcribe_module, "ffmpeg_version", lambda: "fixture")
+
+    payload = transcribe_module.run_whisper_cpp_chunk(
+        input_path=input_path,
+        model_path=model_path,
+        executable_path=executable_path,
+        output_path=tmp_path / "chunk.json",
+        input_origin_seconds=0,
+        chunk_start_seconds=0,
+        duration_seconds=120,
+        language="auto",
+        engine_version="fixture",
+        own_start=0,
+        own_end=120,
+    )
+
+    assert payload["segments"] == []
+    quality = payload["runtime"]["quality"]
+    assert quality["retried_window_count"] == 1
+    assert quality["quarantined_window_count"] == 0
+    assert quality["dropped_low_information_seconds"] == 120
+
+
+def test_low_diversity_retry_is_recorded_as_an_honest_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_path = tmp_path / "audio.m4a"
+    model_path = tmp_path / "model.bin"
+    executable_path = tmp_path / "whisper-cli"
+    for path in (input_path, model_path, executable_path):
+        path.write_bytes(b"fixture")
+
+    def low_diversity_window(**kwargs: object) -> tuple[list[Segment], float]:
+        plan = kwargs["plan"]
+        assert isinstance(plan, transcribe_module.WindowPlan)
+        segments: list[Segment] = []
+        cursor = plan.core_start
+        while cursor < plan.core_end:
+            end = min(cursor + 10, plan.core_end)
+            text = "Thank you" if int(cursor / 10) % 2 == 0 else "Mr. President"
+            segments.append(Segment(cursor, end, text, text.casefold()))
+            cursor = end
+        return segments, 0.01
+
+    monkeypatch.setattr(transcribe_module, "_run_whisper_cpp_window", low_diversity_window)
+    monkeypatch.setattr(transcribe_module, "ffmpeg_version", lambda: "fixture")
+
+    payload = transcribe_module.run_whisper_cpp_chunk(
+        input_path=input_path,
+        model_path=model_path,
+        executable_path=executable_path,
+        output_path=tmp_path / "chunk.json",
+        input_origin_seconds=0,
+        chunk_start_seconds=0,
+        duration_seconds=120,
+        language="auto",
+        engine_version="fixture",
+        own_start=0,
+        own_end=120,
+    )
+
+    assert payload["segments"] == []
+    quality = payload["runtime"]["quality"]
+    assert quality["quarantined_window_count"] == 1
+    assert quality["quarantined_seconds"] == 120
+    assert quality["retries"][0]["fallback_findings"] == [
+        "low_lexical_diversity"
+    ]
 
 
 def test_sparse_one_word_hallucination_uses_wall_clock_span() -> None:

@@ -167,6 +167,17 @@ def parse_whisper_cpp_json(
     return segments
 
 
+def parse_whisper_cpp_json_file(
+    path: Path, *, global_offset_seconds: float, allow_empty: bool = False
+) -> list[Segment]:
+    """Parse whisper.cpp output without discarding a window for one bad byte."""
+    return parse_whisper_cpp_json(
+        path.read_text(encoding="utf-8", errors="replace"),
+        global_offset_seconds=global_offset_seconds,
+        allow_empty=allow_empty,
+    )
+
+
 def _consecutive_runs(
     segments: list[Segment],
 ) -> list[tuple[str, int, float, int, int]]:
@@ -269,7 +280,6 @@ def drop_confirmed_low_information_repetition(
     for text, count, duration, start, end in _consecutive_runs(segments):
         if (
             text not in NON_SPEECH_MARKERS
-            and len(text.split()) <= 2
             and count >= 3
             and duration >= minimum_seconds
         ):
@@ -521,8 +531,11 @@ def _run_whisper_cpp_window(
             raise TranscriptionError(
                 f"whisper.cpp produced no JSON; stderr: {completed.stderr[-1000:]}"
             )
-        all_segments = parse_whisper_cpp_json(
-            raw_path.read_text(encoding="utf-8"),
+        # whisper.cpp can occasionally emit a model token containing an
+        # invalid UTF-8 byte. Preserve the rest of the window and expose the
+        # undecodable byte as U+FFFD instead of losing the ASR shard.
+        all_segments = parse_whisper_cpp_json_file(
+            raw_path,
             global_offset_seconds=input_origin_seconds + plan.input_start,
             allow_empty=True,
         )
@@ -657,19 +670,32 @@ def run_whisper_cpp_chunk(
             )
             if finding in {"repeated_phrase_loop", "low_lexical_diversity"}
         ]
-        if residual:
-            raise TranscriptionError(
-                f"ASR retry remained pathological in window {primary.number}: "
-                + ", ".join(residual)
-            )
         retry_record: dict[str, Any] = {"window": primary.number, "reasons": findings}
         if dropped_seconds:
             retry_record["dropped_low_information_seconds"] = dropped_seconds
+        if residual:
+            # A second ASR pass has independently produced unusable text. An
+            # honest transcript gap is preferable to publishing hallucinated
+            # speech or failing the entire session because one interval is
+            # silent, musical, or otherwise hostile to the model.
+            retry_record["quarantined"] = True
+            retry_record["fallback_findings"] = residual
+            retry_record["quarantined_seconds"] = round(
+                primary.core_end - primary.core_start, 3
+            )
+            retries.append(retry_record)
+            continue
         retries.append(retry_record)
         all_segments.extend(fallback_segments)
 
     all_segments.sort(key=lambda item: (item.start, item.end))
     kept_segments = owned_segments(all_segments, own_start=own_start, own_end=own_end)
+    # Repetition can straddle independently decoded primary windows and only
+    # become visible after they are joined. Remove that confirmed loop before
+    # applying the final quality gate.
+    kept_segments, post_merge_dropped_seconds = drop_confirmed_low_information_repetition(
+        kept_segments
+    )
     quality = validate_transcript_quality(kept_segments)
     payload = {
         "schema_version": 1,
@@ -691,6 +717,22 @@ def run_whisper_cpp_chunk(
                 "strategy": "reset_context_windowed_with_fallback",
                 "primary_window_count": len(primary_plans),
                 "retried_window_count": len(retries),
+                "quarantined_window_count": sum(
+                    1 for retry in retries if retry.get("quarantined")
+                ),
+                "quarantined_seconds": round(sum(
+                    float(retry.get("quarantined_seconds", 0)) for retry in retries
+                ), 3),
+                "dropped_low_information_seconds": round(
+                    post_merge_dropped_seconds + sum(
+                        float(retry.get("dropped_low_information_seconds", 0))
+                        for retry in retries
+                    ),
+                    3,
+                ),
+                "post_merge_dropped_low_information_seconds": (
+                    post_merge_dropped_seconds
+                ),
                 "retries": retries,
             },
         },
