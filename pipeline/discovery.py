@@ -233,7 +233,9 @@ def update_manifest(
         )
         item.setdefault("current_revision", 0)
         match = match_by_id[session_id]
-        if item.get("status") not in {"source_preserved", "pdf_parsed", "aligned", "published"}:
+        # Discovery may refine an unresolved item, but it must never move an
+        # already processed civic record backwards in the state machine.
+        if item.get("status") in {None, "discovered", "review_required"}:
             item["status"] = "discovered" if match["status"] == "matched" else "review_required"
         if match["video"]:
             item["youtube_video_id"] = match["video"]["video_id"]

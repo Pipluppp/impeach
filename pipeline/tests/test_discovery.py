@@ -59,6 +59,30 @@ def test_manifest_update_is_deterministic_and_deduplicated(tmp_path: Path) -> No
     assert write_json_if_changed(path, second) is False
 
 
+def test_manifest_discovery_does_not_downgrade_processed_sessions() -> None:
+    journals = extract_journals(load("senate_published_journals.json"))
+    playlist = normalize_playlist(load("youtube_playlist.json"))
+    matches = match_journals_to_videos(journals, playlist)
+    initial = {
+        "schema_version": 1,
+        "sessions": [{
+            "session_id": "impeachment-trial-06",
+            "session_date": "2026-07-14",
+            "journal_number": 6,
+            "status": "automated_review_pending",
+            "current_revision": 1,
+        }],
+    }
+
+    updated = update_manifest(initial, journals, matches)
+    target = next(
+        item for item in updated["sessions"]
+        if item["session_id"] == "impeachment-trial-06"
+    )
+    assert target["status"] == "automated_review_pending"
+    assert target["current_revision"] == 1
+
+
 def test_changed_pdf_creates_revision_without_overwriting_root(tmp_path: Path) -> None:
     source_dir = tmp_path / "source"
     source_dir.mkdir()
