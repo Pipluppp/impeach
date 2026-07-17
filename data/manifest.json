@@ -21,10 +21,11 @@
     {
       "current_revision": 1,
       "journal_number": 3,
+      "session_data_path": "sessions/2026-07-07/session.json",
       "session_date": "2026-07-07",
       "session_id": "impeachment-trial-03",
       "source_url": "https://senate.gov.ph/hq/uploads/impeachment/e00e3225-f050-476a-8645-abe403c48025.pdf",
-      "status": "source_preserved",
+      "status": "automated_review_pending",
       "youtube_video_id": "DHXtpcWqORo"
     },
     {
