@@ -60,12 +60,13 @@
       "youtube_video_id": "GrQeE6SB1YY"
     },
     {
-      "current_revision": 0,
+      "current_revision": 1,
       "journal_number": 7,
+      "session_data_path": "sessions/2026-07-15/session.json",
       "session_date": "2026-07-15",
       "session_id": "impeachment-trial-07",
       "source_url": "https://senate.gov.ph/hq/uploads/impeachment/be99c445-5636-456e-be31-db199448222a.pdf",
-      "status": "discovered",
+      "status": "automated_review_pending",
       "youtube_video_id": "S_uQFF-0ciM"
     },
     {
