@@ -99,6 +99,60 @@
         "video_id": "GrQeE6SB1YY",
         "watch_url": "https://www.youtube.com/watch?v=GrQeE6SB1YY"
       }
+    },
+    {
+      "candidate_video_ids": [
+        "S_uQFF-0ciM"
+      ],
+      "journal_number": 7,
+      "match_confidence": 1.0,
+      "match_method": "official_playlist_title_date_unique",
+      "session_date": "2026-07-15",
+      "session_id": "impeachment-trial-07",
+      "status": "matched",
+      "video": {
+        "duration_seconds": 13118.0,
+        "session_date": "2026-07-15",
+        "title": "Impeachment Trial of Vice President Sara Zimmerman Duterte (July 15, 2026)",
+        "video_id": "S_uQFF-0ciM",
+        "watch_url": "https://www.youtube.com/watch?v=S_uQFF-0ciM"
+      }
+    },
+    {
+      "candidate_video_ids": [
+        "mHvkhjHnikw"
+      ],
+      "journal_number": 8,
+      "match_confidence": 1.0,
+      "match_method": "official_playlist_title_date_unique",
+      "session_date": "2026-07-20",
+      "session_id": "impeachment-trial-08",
+      "status": "matched",
+      "video": {
+        "duration_seconds": 14236.0,
+        "session_date": "2026-07-20",
+        "title": "Impeachment Trial of Vice President Sara Zimmerman Duterte (July 20, 2026)",
+        "video_id": "mHvkhjHnikw",
+        "watch_url": "https://www.youtube.com/watch?v=mHvkhjHnikw"
+      }
+    },
+    {
+      "candidate_video_ids": [
+        "Ln-3laU1n8c"
+      ],
+      "journal_number": 9,
+      "match_confidence": 1.0,
+      "match_method": "official_playlist_title_date_unique",
+      "session_date": "2026-07-21",
+      "session_id": "impeachment-trial-09",
+      "status": "matched",
+      "video": {
+        "duration_seconds": 18026.0,
+        "session_date": "2026-07-21",
+        "title": "Impeachment Trial of Vice President Sara Zimmerman Duterte (July 21, 2026)",
+        "video_id": "Ln-3laU1n8c",
+        "watch_url": "https://www.youtube.com/watch?v=Ln-3laU1n8c"
+      }
     }
   ],
   "schema_version": 1
