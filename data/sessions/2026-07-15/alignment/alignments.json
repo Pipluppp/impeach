@@ -1,0 +1,152 @@
+{
+  "aligner": {
+    "name": "monotonic-journal-asr",
+    "version": "0.4.0"
+  },
+  "diagnostics": {
+    "abstained_spoken_blocks": 5,
+    "auto_accepted": 3,
+    "candidate_blocks": 4,
+    "contextual_ranges": 1,
+    "direct_matches": 4,
+    "eligible_spoken_blocks": 9,
+    "manual_reviewed": 0,
+    "selected_direct_blocks": 4
+  },
+  "entries": [
+    {
+      "block_id": "j07-p003-b008",
+      "confidence": 0.88,
+      "end": 311.28,
+      "evidence": {
+        "asr_segment_ids": [
+          "asr-000013",
+          "asr-000014",
+          "asr-000015",
+          "asr-000016",
+          "asr-000017"
+        ],
+        "claim_limit": "ASR-assisted turn range; not a word-level timestamp.",
+        "distinctive_tokens": 36,
+        "exact_token_coverage": 0.8229,
+        "match_score": 0.8671,
+        "method": "monotonic_fuzzy_asr_path",
+        "token_coverage": 0.8856,
+        "uniqueness_margin": 0.8671
+      },
+      "precision": "approximate_dialogue_turn",
+      "review_state": "auto_accepted",
+      "start": 279.32,
+      "time_domain": "session_video"
+    },
+    {
+      "block_id": "j07-p003-b009",
+      "confidence": 0.425,
+      "end": 328.56,
+      "evidence": {
+        "claim_limit": "Unmatched dialogue bounded by neighboring monotonic matches; not a direct lexical match.",
+        "method": "bounded_monotonic_context"
+      },
+      "precision": "contextual_dialogue_range",
+      "review_state": "needs_review",
+      "start": 311.28,
+      "time_domain": "session_video"
+    },
+    {
+      "block_id": "j07-p003-b010",
+      "confidence": 0.98,
+      "end": 339.08,
+      "evidence": {
+        "asr_segment_ids": [
+          "asr-000021",
+          "asr-000022"
+        ],
+        "claim_limit": "ASR-assisted turn range; not a word-level timestamp.",
+        "distinctive_tokens": 9,
+        "exact_token_coverage": 0.9759,
+        "match_score": 0.9798,
+        "method": "monotonic_fuzzy_asr_path",
+        "token_coverage": 0.9759,
+        "uniqueness_margin": 0.9798
+      },
+      "precision": "approximate_dialogue_turn",
+      "review_state": "auto_accepted",
+      "start": 328.56,
+      "time_domain": "session_video"
+    },
+    {
+      "block_id": "j07-p003-b011",
+      "confidence": 0.842,
+      "end": 343.14,
+      "evidence": {
+        "asr_segment_ids": [
+          "asr-000023"
+        ],
+        "claim_limit": "ASR-assisted turn range; not a word-level timestamp.",
+        "distinctive_tokens": 4,
+        "exact_token_coverage": 0.8513,
+        "match_score": 0.8504,
+        "method": "monotonic_fuzzy_asr_path",
+        "token_coverage": 0.8513,
+        "uniqueness_margin": 0.8504
+      },
+      "precision": "approximate_dialogue_turn",
+      "review_state": "auto_accepted",
+      "start": 339.96,
+      "time_domain": "session_video"
+    },
+    {
+      "block_id": "j07-p013-b008",
+      "confidence": 0.332,
+      "end": 3336.08,
+      "evidence": {
+        "asr_segment_ids": [
+          "asr-000659"
+        ],
+        "claim_limit": "ASR-assisted turn range; not a word-level timestamp.",
+        "distinctive_tokens": 3,
+        "exact_token_coverage": 0.576,
+        "match_score": 0.6262,
+        "method": "monotonic_fuzzy_asr_path",
+        "token_coverage": 0.7402,
+        "uniqueness_margin": 0.6262
+      },
+      "precision": "approximate_dialogue_turn",
+      "review_state": "needs_review",
+      "start": 3326.08,
+      "time_domain": "session_video"
+    }
+  ],
+  "entry_count": 5,
+  "policy": {
+    "asr_role": "internal_alignment_aid",
+    "authoritative_text": "official_senate_journal",
+    "automatic_score_threshold": 0.72,
+    "automatic_uniqueness_margin": 0.055,
+    "dialogue_precision": "approximate_turn_range_not_word_exact",
+    "exhibit_timestamps_are_session_seeks": false,
+    "speaker_label_is_spoken_query": false,
+    "structural_text_is_spoken_query": false,
+    "summary_precision": "bounded_context_not_verbatim",
+    "uncertain_blocks_may_be_unaligned": true
+  },
+  "review_queue": [
+    {
+      "block_id": "j07-p003-b009",
+      "confidence": 0.425,
+      "precision": "contextual_dialogue_range",
+      "reason": "low_confidence_or_contextual_range"
+    },
+    {
+      "block_id": "j07-p013-b008",
+      "confidence": 0.332,
+      "precision": "approximate_dialogue_turn",
+      "reason": "low_confidence_or_contextual_range"
+    }
+  ],
+  "schema_version": 1,
+  "session_id": "impeachment-trial-07",
+  "time_domain": "session_video",
+  "unresolved_conflicts": [],
+  "youtube_video_id": "S_uQFF-0ciM"
+}
