@@ -80,10 +80,11 @@
     {
       "current_revision": 1,
       "journal_number": 9,
+      "session_data_path": "sessions/2026-07-21/session.json",
       "session_date": "2026-07-21",
       "session_id": "impeachment-trial-09",
       "source_url": "https://senate.gov.ph/hq/uploads/impeachment/220c4342-4d52-4326-875a-5f16fe67ab94.pdf",
-      "status": "source_preserved",
+      "status": "automated_review_pending",
       "youtube_video_id": "Ln-3laU1n8c"
     }
   ]
